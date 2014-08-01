@@ -37,6 +37,25 @@ unsigned long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2
 	return out;
 }
 
+void encode_tile(int zz, int z, unsigned int x, unsigned int y, unsigned long long *start, unsigned long long *end) {
+	long long out = ((long long) zz) << 59;
+
+	x <<= (32 - z);
+	y <<= (32 - z);
+
+	int i;
+	for (i = 0; i < 28; i++) {
+		long long v = ((y >> (31 - i)) & 1) << 1;
+		v |= (x >> (31 - i)) & 1;
+		v = v << (57 - 2 * i);
+
+		out |= v;
+	}
+
+	*start = out;
+	*end = out | (((unsigned long long) -1LL) >> (2 * z + 5));
+}
+
 void decode_bbox(unsigned long long code, int *z, unsigned int *wx, unsigned int *wy) {
 	*z = code >> 59;
 	*wx = 0;
@@ -122,13 +141,39 @@ int main(int argc, char **argv) {
 
 	int i;
 	for (i = 0; i < npoints; i++) {
-		unsigned x, y;
+		unsigned wx, wy;
 		int z;
 		double lat1, lon1;
 
-		decode_bbox(points[i].index, &z, &x, &y);
-		tile2latlon(x, y, 32, &lat1, &lon1);
+		decode_bbox(points[i].index, &z, &wx, &wy);
+		tile2latlon(wx, wy, 32, &lat1, &lon1);
 
 		printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, lat1, lon1, points[i].lat1, points[i].lon1, points[i].lat2, points[i].lon2);
+
+		unsigned x = wx >> (32 - z);
+		unsigned y = wy >> (32 - z);
+
+		printf("\t%d/%u/%u\n", z, x, y);
+
+		int zz;
+		for (zz = 0; zz < z; zz++) {
+			unsigned long long start, end;
+
+			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
+			printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, zz, x >> (z - zz), y >> (z - zz));
+		}
+		for (zz = z; zz <= 28; zz++) {
+			unsigned long long start, end;
+
+			encode_tile(zz, z, x, y, &start, &end);
+			printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, z, x, y);
+		}
+
+#if 0
+		unsigned long long min = points[i].index & ~(((unsigned long long) -1LL) >> z);
+		unsigned long long max = points[i].index | (((unsigned long long) -1LL) >> z);
+
+		printf("\t%llx %llx\n", min, max);
+#endif
 	}
 }
