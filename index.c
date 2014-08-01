@@ -174,6 +174,68 @@ void index_add(struct index *i, double minlat, double minlon, double maxlat, dou
 	i->npoints++;
 }
 
+void index_lookup(struct index *ix, double minlat, double minlon, double maxlat, double maxlon, void (*callback)(struct point *, void *), void *data) {
+	unsigned x1, y1, x2, y2;
+	int z;
+	unsigned x, y;
+
+	latlon2tile(minlat, minlon, 32, &x1, &y1);
+	latlon2tile(maxlat, maxlon, 32, &x2, &y2);
+	get_bbox_tile(x1, y1, x2, y2, &z, &x, &y);
+
+	int zz;
+	for (zz = 0; zz <= MAX_ZOOM; zz++) {
+		unsigned long long start, end;
+
+		if (zz < z) {
+			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
+		} else {
+			encode_tile(zz, z, x, y, &start, &end);
+		}
+
+		struct point *pstart = search(&start, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
+		struct point *pend = search(&end, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
+
+		if (pend >= ix->points + ix->npoints) {
+			pend = ix->points + ix->npoints - 1;
+		}
+		while (pstart > ix->points && pointcmp(pstart - 1, &start) == 0) {
+			pstart--;
+		}
+		if (pointcmp(pstart, &start) < 0) {
+			pstart++;
+		}
+		if (pointcmp(pend, &end) > 0) {
+			pend--;
+		}
+
+		struct point *j;
+		for (j = pstart; j <= pend; j++) {
+			int dz;
+			unsigned int dwx, dwy;
+
+			decode_bbox(j->index, &dz, &dwx, &dwy);
+
+			// reject by bbox
+			if (j->minlat > maxlat ||
+			    j->minlon > maxlon ||
+			    minlat > j->maxlat ||
+			    minlon > j->maxlon) {
+				continue;
+			}
+
+			callback(j, data);
+		}
+
+		// printf("\t%016llx  %d\n", end, zz);
+	}
+}
+
+void callback(struct point *p, void *v) {
+	int *i = v;
+	(*i)++;
+}
+
 int main(int argc, char **argv) {
 	char s[2000];
 
@@ -194,77 +256,17 @@ int main(int argc, char **argv) {
 
 	int i;
 	for (i = 0; i < ix.npoints; i++) {
-		unsigned x1, y1, x2, y2;
-		int z;
-		unsigned x, y;
-
-		latlon2tile(ix.points[i].minlat, ix.points[i].minlon, 32, &x1, &y1);
-		latlon2tile(ix.points[i].maxlat, ix.points[i].maxlon, 32, &x2, &y2);
-		get_bbox_tile(x1, y1, x2, y2, &z, &x, &y);
-
 		int possible = 0;
 		int matchedself = 0;
 
-		int zz;
-		for (zz = 0; zz <= MAX_ZOOM; zz++) {
-			unsigned long long start, end;
-
-			if (zz < z) {
-				encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
-			} else {
-				encode_tile(zz, z, x, y, &start, &end);
-			}
-
-			// printf("\t%016llx  %d\n", start, zz);
-
-			struct point *pstart = search(&start, ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
-			struct point *pend = search(&end, ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
-
-			if (pend >= ix.points + ix.npoints) {
-				pend = ix.points + ix.npoints - 1;
-			}
-
-			while (pstart > ix.points && pointcmp(pstart - 1, &start) == 0) {
-				pstart--;
-			}
-
-			if (pointcmp(pstart, &start) < 0) {
-				pstart++;
-			}
-			if (pointcmp(pend, &end) > 0) {
-				pend--;
-			}
-
-			struct point *j;
-			for (j = pstart; j <= pend; j++) {
-				int dz;
-				unsigned int dwx, dwy;
-
-				decode_bbox(j->index, &dz, &dwx, &dwy);
-
-				// reject by bbox
-				if (j->minlat > ix.points[i].maxlat ||
-				    j->minlon > ix.points[i].maxlon ||
-				    ix.points[i].minlat > j->maxlat ||
-				    ix.points[i].minlon > j->maxlon) {
-					continue;
-				}
-
-				// printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
-				possible++;
-
-				if (j == ix.points + i) {
-					matchedself = 1;
-				}
-			}
-
-			// printf("\t%016llx  %d\n", end, zz);
-		}
+		index_lookup(&ix, ix.points[i].minlat, ix.points[i].minlon, ix.points[i].maxlat, ix.points[i].maxlon, callback, &possible);
 
 		printf("%d\n", possible);
 
+#if 0
 		if (!matchedself) {
 			fprintf(stderr, "did not match self: %llx %d    %f,%f %f,%f\n", ix.points[i].index, z, ix.points[i].minlat, ix.points[i].minlon, ix.points[i].maxlat, ix.points[i].maxlon);
 		}
+#endif
 	}
 }
