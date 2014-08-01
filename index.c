@@ -106,6 +106,28 @@ int pointcmp(const void *v1, const void *v2) {
 	}
 }
 
+// http://www.tbray.org/ongoing/When/200x/2003/03/22/Binary
+void *search(const void *key, const void *base, size_t nel, size_t width,
+		int (*cmp)(const void *, const void *)) {
+
+	long long high = nel, low = -1, probe;
+	while (high - low > 1) {
+		probe = (low + high) >> 1;
+		int c = cmp(((char *) base) + probe * width, key);
+		if (c > 0) {
+			high = probe;
+		} else {
+			low = probe;
+		}
+	}
+
+	if (low < 0) {
+		low = 0;
+	}
+
+	return ((char *) base) + low * width;
+}
+
 int main(int argc, char **argv) {
 	char s[2000];
 
@@ -120,7 +142,7 @@ int main(int argc, char **argv) {
 			unsigned int x1, y1, x2, y2;
 			latlon2tile(lat1, lon1, 32, &x1, &y1);
 			latlon2tile(lat2, lon2, 32, &x2, &y2);
-			int z = get_bbox_zoom(x1, y1, x2, y2);
+			//int z = get_bbox_zoom(x1, y1, x2, y2);
 			unsigned long long enc = encode_bbox(x1, y1, x2, y2, 0);
 
 			if (npoints + 1 >= npalloc) {
@@ -156,24 +178,36 @@ int main(int argc, char **argv) {
 		printf("\t%d/%u/%u\n", z, x, y);
 
 		int zz;
-		for (zz = 0; zz < z; zz++) {
+		for (zz = 0; zz <= 28; zz++) {
 			unsigned long long start, end;
 
-			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
+			if (zz < z) {
+				encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
+			} else {
+				encode_tile(zz, z, x, y, &start, &end);
+			}
+
 			printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, zz, x >> (z - zz), y >> (z - zz));
+
+			struct point *pstart = search(&start, points, npoints, sizeof(points[0]), pointcmp);
+			struct point *pend = search(&end, points, npoints, sizeof(points[0]), pointcmp);
+
+			if (pointcmp(pstart, &start) != 0) {
+				pstart++;
+			}
+
+			if (pend >= points + npoints) {
+				pend = points + npoints - 1;
+			}
+
+			struct point *j;
+			for (j = pstart; j <= pend; j++) {
+				int dz;
+				unsigned int dwx, dwy;
+
+				decode_bbox(j->index, &dz, &dwx, &dwy);
+				printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->lat1, j->lon1, j->lat2, j->lon2);
+			}
 		}
-		for (zz = z; zz <= 28; zz++) {
-			unsigned long long start, end;
-
-			encode_tile(zz, z, x, y, &start, &end);
-			printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, z, x, y);
-		}
-
-#if 0
-		unsigned long long min = points[i].index & ~(((unsigned long long) -1LL) >> z);
-		unsigned long long max = points[i].index | (((unsigned long long) -1LL) >> z);
-
-		printf("\t%llx %llx\n", min, max);
-#endif
 	}
 }
