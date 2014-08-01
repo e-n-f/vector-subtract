@@ -211,11 +211,6 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 
 		struct point *j;
 		for (j = pstart; j <= pend; j++) {
-			int dz;
-			unsigned int dwx, dwy;
-
-			decode_bbox(j->index, &dz, &dwx, &dwy);
-
 			// reject by bbox
 			if (j->minlat > maxlat ||
 			    j->minlon > maxlon ||
