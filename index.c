@@ -19,6 +19,12 @@ int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned in
 	return MAX_ZOOM;
 }
 
+void get_bbox_tile(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, int *z, unsigned int *x, unsigned int *y) {
+	*z = get_bbox_zoom(x1, y1, x2, y2);
+	*x = x1 >> (32 - *z);
+	*y = y1 >> (32 - *z);
+}
+
 /*
  *  5 bits for zoom             (<< 59)
  * 56 bits for interspersed yx  (<< 3)
@@ -131,67 +137,70 @@ void *search(const void *key, const void *base, size_t nel, size_t width,
 	return ((char *) base) + low * width;
 }
 
+struct index {
+	struct point *points;
+	int npoints;
+	int npalloc;
+};
+
+void index_add(struct index *i, double minlat, double minlon, double maxlat, double maxlon) {
+	unsigned int x1, y1, x2, y2;
+
+	if (minlat > maxlat) {
+		double swap = minlat;
+		minlat = maxlat;
+		maxlat = swap;
+	}
+	if (minlon > maxlon) {
+		double swap = minlon;
+		minlon = maxlon;
+		maxlon = swap;
+	}
+
+	latlon2tile(minlat, minlon, 32, &x1, &y1);
+	latlon2tile(maxlat, maxlon, 32, &x2, &y2);
+	unsigned long long enc = encode_bbox(x1, y1, x2, y2, 0);
+
+	if (i->npoints + 1 >= i->npalloc) {
+		i->npalloc = (i->npalloc + 1000) * 3 / 2;
+		i->points = realloc(i->points, i->npalloc * sizeof(i->points[0]));
+	}
+
+	i->points[i->npoints].index = enc;
+	i->points[i->npoints].minlat = minlat;
+	i->points[i->npoints].minlon = minlon;
+	i->points[i->npoints].maxlat = maxlat;
+	i->points[i->npoints].maxlon = maxlon;
+	i->npoints++;
+}
+
 int main(int argc, char **argv) {
 	char s[2000];
 
-	struct point *points = NULL;
-	int npalloc = 0;
-	int npoints = 0;
+	struct index ix;
+	ix.points = NULL;
+	ix.npoints = 0;
+	ix.npalloc = 0;
 
 	while (fgets(s, 2000, stdin)) {
 		double minlat, minlon, maxlat, maxlon;
 
 		if (sscanf(s, "%lf,%lf %lf,%lf", &minlat, &minlon, &maxlat, &maxlon) == 4) {
-			unsigned int x1, y1, x2, y2;
-
-			// act like these are bboxes
-			if (minlat > maxlat) {
-				double swap = minlat;
-				minlat = maxlat;
-				maxlat = swap;
-			}
-			if (minlon > maxlon) {
-				double swap = minlon;
-				minlon = maxlon;
-				maxlon = swap;
-			}
-
-			latlon2tile(minlat, minlon, 32, &x1, &y1);
-			latlon2tile(maxlat, maxlon, 32, &x2, &y2);
-			//int z = get_bbox_zoom(x1, y1, x2, y2);
-			unsigned long long enc = encode_bbox(x1, y1, x2, y2, 0);
-
-			if (npoints + 1 >= npalloc) {
-				npalloc = (npalloc + 1000) * 3 / 2;
-				points = realloc(points, npalloc * sizeof(points[0]));
-			}
-
-			points[npoints].index = enc;
-			points[npoints].minlat = minlat;
-			points[npoints].minlon = minlon;
-			points[npoints].maxlat = maxlat;
-			points[npoints].maxlon = maxlon;
-			npoints++;
+			index_add(&ix, minlat, minlon, maxlat, maxlon);
 		}
 	}
 
-	qsort(points, npoints, sizeof(points[0]), pointcmp);
+	qsort(ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
 
 	int i;
-	for (i = 0; i < npoints; i++) {
-		unsigned wx, wy;
+	for (i = 0; i < ix.npoints; i++) {
+		unsigned x1, y1, x2, y2;
 		int z;
-		double minlat, minlon;
+		unsigned x, y;
 
-		decode_bbox(points[i].index, &z, &wx, &wy);
-		tile2latlon(wx, wy, 32, &minlat, &minlon);
-
-		// printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
-
-		unsigned x = wx >> (32 - z);
-		unsigned y = wy >> (32 - z);
-
-		// printf("\t%d/%u/%u\n", z, x, y);
+		latlon2tile(ix.points[i].minlat, ix.points[i].minlon, 32, &x1, &y1);
+		latlon2tile(ix.points[i].maxlat, ix.points[i].maxlon, 32, &x2, &y2);
+		get_bbox_tile(x1, y1, x2, y2, &z, &x, &y);
 
 		int possible = 0;
 		int matchedself = 0;
@@ -208,14 +217,14 @@ int main(int argc, char **argv) {
 
 			// printf("\t%016llx  %d\n", start, zz);
 
-			struct point *pstart = search(&start, points, npoints, sizeof(points[0]), pointcmp);
-			struct point *pend = search(&end, points, npoints, sizeof(points[0]), pointcmp);
+			struct point *pstart = search(&start, ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
+			struct point *pend = search(&end, ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
 
-			if (pend >= points + npoints) {
-				pend = points + npoints - 1;
+			if (pend >= ix.points + ix.npoints) {
+				pend = ix.points + ix.npoints - 1;
 			}
 
-			while (pstart > points && pointcmp(pstart - 1, &start) == 0) {
+			while (pstart > ix.points && pointcmp(pstart - 1, &start) == 0) {
 				pstart--;
 			}
 
@@ -234,17 +243,17 @@ int main(int argc, char **argv) {
 				decode_bbox(j->index, &dz, &dwx, &dwy);
 
 				// reject by bbox
-				if (j->minlat > points[i].maxlat ||
-				    j->minlon > points[i].maxlon ||
-				    points[i].minlat > j->maxlat ||
-				    points[i].minlon > j->maxlon) {
+				if (j->minlat > ix.points[i].maxlat ||
+				    j->minlon > ix.points[i].maxlon ||
+				    ix.points[i].minlat > j->maxlat ||
+				    ix.points[i].minlon > j->maxlon) {
 					continue;
 				}
 
 				// printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
 				possible++;
 
-				if (j == points + i) {
+				if (j == ix.points + i) {
 					matchedself = 1;
 				}
 			}
@@ -255,7 +264,7 @@ int main(int argc, char **argv) {
 		printf("%d\n", possible);
 
 		if (!matchedself) {
-			fprintf(stderr, "did not match self: %llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
+			fprintf(stderr, "did not match self: %llx %d    %f,%f %f,%f\n", ix.points[i].index, z, ix.points[i].minlat, ix.points[i].minlon, ix.points[i].maxlat, ix.points[i].maxlon);
 		}
 	}
 }
