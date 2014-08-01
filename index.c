@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
 		decode_bbox(points[i].index, &z, &wx, &wy);
 		tile2latlon(wx, wy, 32, &minlat, &minlon);
 
-		printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
+		// printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
 
 		unsigned x = wx >> (32 - z);
 		unsigned y = wy >> (32 - z);
@@ -191,6 +191,7 @@ int main(int argc, char **argv) {
 		// printf("\t%d/%u/%u\n", z, x, y);
 
 		int possible = 0;
+		int matchedself = 0;
 
 		int zz;
 		for (zz = 0; zz <= 28; zz++) {
@@ -202,17 +203,20 @@ int main(int argc, char **argv) {
 				encode_tile(zz, z, x, y, &start, &end);
 			}
 
-			// printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, zz, x >> (z - zz), y >> (z - zz));
+			// printf("\t%016llx  %d\n", start, zz);
 
 			struct point *pstart = search(&start, points, npoints, sizeof(points[0]), pointcmp);
 			struct point *pend = search(&end, points, npoints, sizeof(points[0]), pointcmp);
 
-			if (pointcmp(pstart, &start) != 0) {
-				pstart++;
-			}
-
 			if (pend >= points + npoints) {
 				pend = points + npoints - 1;
+			}
+
+			if (pointcmp(pstart, &start) < 0) {
+				pstart++;
+			}
+			if (pointcmp(pend, &end) > 0) {
+				pend--;
 			}
 
 			struct point *j;
@@ -222,6 +226,7 @@ int main(int argc, char **argv) {
 
 				decode_bbox(j->index, &dz, &dwx, &dwy);
 
+#if 0
 				// reject by bbox
 				if (j->minlat > points[i].maxlat ||
 				    j->minlon > points[i].maxlon ||
@@ -229,12 +234,23 @@ int main(int argc, char **argv) {
 				    points[i].minlon > j->maxlon) {
 					continue;
 				}
+#endif
 
-				printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
+				// printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
 				possible++;
+
+				if (j == points + i) {
+					matchedself = 1;
+				}
 			}
+
+			// printf("\t%016llx  %d\n", end, zz);
 		}
 
 		printf("%d\n", possible);
+
+		if (!matchedself) {
+			fprintf(stderr, "did not match self: %llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
+		}
 	}
 }
