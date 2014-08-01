@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <math.h>
 
+#define MAX_ZOOM 28
+#define ZOOM_BITS 5
+
 int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2) {
 	int z;
-	for (z = 0; z < 28; z++) {
-		int mask = 1 << (31 - z);
+	for (z = 0; z < MAX_ZOOM; z++) {
+		int mask = 1 << (32 - (z + 1));
 
 		if (((x1 & mask) != (x2 & mask)) ||
 		    ((y1 & mask) != (y2 & mask))) {
@@ -13,7 +16,7 @@ int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned in
 		}
 	}
 
-	return 28;
+	return MAX_ZOOM;
 }
 
 /*
@@ -23,13 +26,13 @@ int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned in
  */
 unsigned long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, int tags) {
 	int z = get_bbox_zoom(x1, y1, x2, y2);
-	long long out = ((long long) z) << 59;
+	long long out = ((long long) z) << (64 - ZOOM_BITS);
 
 	int i;
-	for (i = 0; i < 28; i++) {
-		long long v = ((y1 >> (31 - i)) & 1) << 1;
-		v |= (x1 >> (31 - i)) & 1;
-		v = v << (57 - 2 * i);
+	for (i = 0; i < MAX_ZOOM; i++) {
+		long long v = ((y1 >> (32 - (i + 1))) & 1) << 1;
+		v |= (x1 >> (32 - (i + 1))) & 1;
+		v = v << (64 - ZOOM_BITS - 2 * (i + 1));
 
 		out |= v;
 	}
@@ -38,35 +41,35 @@ unsigned long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2
 }
 
 void encode_tile(int zz, int z, unsigned int x, unsigned int y, unsigned long long *start, unsigned long long *end) {
-	long long out = ((long long) zz) << 59;
+	long long out = ((long long) zz) << (64 - ZOOM_BITS);
 
 	x <<= (32 - z);
 	y <<= (32 - z);
 
 	int i;
-	for (i = 0; i < 28; i++) {
-		long long v = ((y >> (31 - i)) & 1) << 1;
-		v |= (x >> (31 - i)) & 1;
-		v = v << (57 - 2 * i);
+	for (i = 0; i < MAX_ZOOM; i++) {
+		long long v = ((y >> (32 - (i + 1))) & 1) << 1;
+		v |= (x >> (32 - (i + 1))) & 1;
+		v = v << (64 - ZOOM_BITS - 2 * (i + 1));
 
 		out |= v;
 	}
 
 	*start = out;
-	*end = out | (((unsigned long long) -1LL) >> (2 * z + 5));
+	*end = out | (((unsigned long long) -1LL) >> (2 * z + ZOOM_BITS));
 }
 
 void decode_bbox(unsigned long long code, int *z, unsigned int *wx, unsigned int *wy) {
-	*z = code >> 59;
+	*z = code >> (64 - ZOOM_BITS);
 	*wx = 0;
 	*wy = 0;
 
 	int i;
-	for (i = 0; i < 28; i++) {
-		long long v = code >> (57 - 2 * i);
+	for (i = 0; i < MAX_ZOOM; i++) {
+		long long v = code >> (64 - ZOOM_BITS - 2 * (i + 1));
 
-		*wy |= ((v & 2) >> 1) << (31 - i);
-		*wx |= (v & 1) << (31 - i);
+		*wy |= ((v & 2) >> 1) << (32 - (i + 1));
+		*wx |= (v & 1) << (32 - (i + 1));
 	}
 }
 
@@ -194,7 +197,7 @@ int main(int argc, char **argv) {
 		int matchedself = 0;
 
 		int zz;
-		for (zz = 0; zz <= 28; zz++) {
+		for (zz = 0; zz <= MAX_ZOOM; zz++) {
 			unsigned long long start, end;
 
 			if (zz < z) {
