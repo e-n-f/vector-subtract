@@ -212,6 +212,10 @@ int main(int argc, char **argv) {
 				pend = points + npoints - 1;
 			}
 
+			while (pstart > points && pointcmp(pstart - 1, &start) == 0) {
+				pstart--;
+			}
+
 			if (pointcmp(pstart, &start) < 0) {
 				pstart++;
 			}
@@ -226,7 +230,6 @@ int main(int argc, char **argv) {
 
 				decode_bbox(j->index, &dz, &dwx, &dwy);
 
-#if 0
 				// reject by bbox
 				if (j->minlat > points[i].maxlat ||
 				    j->minlon > points[i].maxlon ||
@@ -234,7 +237,6 @@ int main(int argc, char **argv) {
 				    points[i].minlon > j->maxlon) {
 					continue;
 				}
-#endif
 
 				// printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
 				possible++;
