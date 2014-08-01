@@ -21,7 +21,7 @@ int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned in
  * 56 bits for interspersed yx  (<< 3)
  *  3 bits for tags             (<< 0)
  */
-long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, int tags) {
+unsigned long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, int tags) {
 	int z = get_bbox_zoom(x1, y1, x2, y2);
 	long long out = ((long long) z) << 59;
 
@@ -37,7 +37,7 @@ long long encode_bbox(unsigned int x1, unsigned int y1, unsigned int x2, unsigne
 	return out;
 }
 
-void decode_bbox(long long code, int *z, unsigned int *wx, unsigned int *wy) {
+void decode_bbox(unsigned long long code, int *z, unsigned int *wx, unsigned int *wy) {
 	*z = code >> 59;
 	*wx = 0;
 	*wy = 0;
@@ -68,8 +68,25 @@ void tile2latlon(unsigned int x, unsigned int y, int zoom, double *lat, double *
 	*lat = lat_rad * 180 / M_PI;
 }
 
+int pointcmp(const void *v1, const void *v2) {
+	const unsigned long long *p1 = v1;
+	const unsigned long long *p2 = v2;
+
+	if (*p1 < *p2) {
+		return -1;
+	} else if (*p1 > *p2) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
 int main(int argc, char **argv) {
 	char s[2000];
+
+	unsigned long long *points = NULL;
+	int npalloc = 0;
+	int npoints = 0;
 
 	while (fgets(s, 2000, stdin)) {
 		double lat1, lon1, lat2, lon2;
@@ -79,8 +96,16 @@ int main(int argc, char **argv) {
 			latlon2tile(lat1, lon1, 32, &x1, &y1);
 			latlon2tile(lat2, lon2, 32, &x2, &y2);
 			int z = get_bbox_zoom(x1, y1, x2, y2);
-			long long enc = encode_bbox(x1, y1, x2, y2, 0);
+			unsigned long long enc = encode_bbox(x1, y1, x2, y2, 0);
 
+			if (npoints + 1 >= npalloc) {
+				npalloc = (npalloc + 1000) * 3 / 2;
+				points = realloc(points, npalloc * sizeof(points[0]));
+			}
+
+			points[npoints++] = enc;
+
+#if 0
 			printf("%f,%f %f,%f %x %x %x %x: %d %llx ", lat1, lon1, lat2, lon2,
 				x1, y1, x2, y2, z, enc);
 
@@ -88,6 +113,21 @@ int main(int argc, char **argv) {
 			tile2latlon(x1, y1, 32, &lat1, &lon1);
 
 			printf("%x %x %f %f\n", x1, y1, lat1, lon1);
+#endif
 		}
+	}
+
+	qsort(points, npoints, sizeof(points[0]), pointcmp);
+
+	int i;
+	for (i = 0; i < npoints; i++) {
+		unsigned x, y;
+		int z;
+		double lat1, lon1;
+
+		decode_bbox(points[i], &z, &x, &y);
+		tile2latlon(x, y, 32, &lat1, &lon1);
+
+		printf("%llx %d %f,%f\n", points[i], z, lat1, lon1);
 	}
 }
