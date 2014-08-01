@@ -89,8 +89,8 @@ void tile2latlon(unsigned int x, unsigned int y, int zoom, double *lat, double *
 
 struct point {
 	unsigned long long index;
-	double lat1, lon1;
-	double lat2, lon2;
+	double minlat, minlon;
+	double maxlat, maxlon;
 };
 
 int pointcmp(const void *v1, const void *v2) {
@@ -136,12 +136,25 @@ int main(int argc, char **argv) {
 	int npoints = 0;
 
 	while (fgets(s, 2000, stdin)) {
-		double lat1, lon1, lat2, lon2;
+		double minlat, minlon, maxlat, maxlon;
 
-		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
+		if (sscanf(s, "%lf,%lf %lf,%lf", &minlat, &minlon, &maxlat, &maxlon) == 4) {
 			unsigned int x1, y1, x2, y2;
-			latlon2tile(lat1, lon1, 32, &x1, &y1);
-			latlon2tile(lat2, lon2, 32, &x2, &y2);
+
+			// act like these are bboxes
+			if (minlat > maxlat) {
+				double swap = minlat;
+				minlat = maxlat;
+				maxlat = swap;
+			}
+			if (minlon > maxlon) {
+				double swap = minlon;
+				minlon = maxlon;
+				maxlon = swap;
+			}
+
+			latlon2tile(minlat, minlon, 32, &x1, &y1);
+			latlon2tile(maxlat, maxlon, 32, &x2, &y2);
 			//int z = get_bbox_zoom(x1, y1, x2, y2);
 			unsigned long long enc = encode_bbox(x1, y1, x2, y2, 0);
 
@@ -151,10 +164,10 @@ int main(int argc, char **argv) {
 			}
 
 			points[npoints].index = enc;
-			points[npoints].lat1 = lat1;
-			points[npoints].lon1 = lon1;
-			points[npoints].lat2 = lat2;
-			points[npoints].lon2 = lon2;
+			points[npoints].minlat = minlat;
+			points[npoints].minlon = minlon;
+			points[npoints].maxlat = maxlat;
+			points[npoints].maxlon = maxlon;
 			npoints++;
 		}
 	}
@@ -165,17 +178,19 @@ int main(int argc, char **argv) {
 	for (i = 0; i < npoints; i++) {
 		unsigned wx, wy;
 		int z;
-		double lat1, lon1;
+		double minlat, minlon;
 
 		decode_bbox(points[i].index, &z, &wx, &wy);
-		tile2latlon(wx, wy, 32, &lat1, &lon1);
+		tile2latlon(wx, wy, 32, &minlat, &minlon);
 
-		printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, lat1, lon1, points[i].lat1, points[i].lon1, points[i].lat2, points[i].lon2);
+		printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, minlat, minlon, points[i].minlat, points[i].minlon, points[i].maxlat, points[i].maxlon);
 
 		unsigned x = wx >> (32 - z);
 		unsigned y = wy >> (32 - z);
 
-		printf("\t%d/%u/%u\n", z, x, y);
+		// printf("\t%d/%u/%u\n", z, x, y);
+
+		int possible = 0;
 
 		int zz;
 		for (zz = 0; zz <= 28; zz++) {
@@ -187,7 +202,7 @@ int main(int argc, char **argv) {
 				encode_tile(zz, z, x, y, &start, &end);
 			}
 
-			printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, zz, x >> (z - zz), y >> (z - zz));
+			// printf("\t%016llx %016llx %d %d/%u/%u\n", start, end, zz, zz, x >> (z - zz), y >> (z - zz));
 
 			struct point *pstart = search(&start, points, npoints, sizeof(points[0]), pointcmp);
 			struct point *pend = search(&end, points, npoints, sizeof(points[0]), pointcmp);
@@ -206,8 +221,20 @@ int main(int argc, char **argv) {
 				unsigned int dwx, dwy;
 
 				decode_bbox(j->index, &dz, &dwx, &dwy);
-				printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->lat1, j->lon1, j->lat2, j->lon2);
+
+				// reject by bbox
+				if (j->minlat > points[i].maxlat ||
+				    j->minlon > points[i].maxlon ||
+				    points[i].minlat > j->maxlat ||
+				    points[i].minlon > j->maxlon) {
+					continue;
+				}
+
+				printf("\t%llx  %d  %f,%f %f,%f\n", j->index, dz, j->minlat, j->minlon, j->maxlat, j->maxlon);
+				possible++;
 			}
 		}
+
+		printf("%d\n", possible);
 	}
 }
