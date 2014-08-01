@@ -68,6 +68,12 @@ void tile2latlon(unsigned int x, unsigned int y, int zoom, double *lat, double *
 	*lat = lat_rad * 180 / M_PI;
 }
 
+struct point {
+	unsigned long long index;
+	double lat1, lon1;
+	double lat2, lon2;
+};
+
 int pointcmp(const void *v1, const void *v2) {
 	const unsigned long long *p1 = v1;
 	const unsigned long long *p2 = v2;
@@ -84,7 +90,7 @@ int pointcmp(const void *v1, const void *v2) {
 int main(int argc, char **argv) {
 	char s[2000];
 
-	unsigned long long *points = NULL;
+	struct point *points = NULL;
 	int npalloc = 0;
 	int npoints = 0;
 
@@ -103,17 +109,12 @@ int main(int argc, char **argv) {
 				points = realloc(points, npalloc * sizeof(points[0]));
 			}
 
-			points[npoints++] = enc;
-
-#if 0
-			printf("%f,%f %f,%f %x %x %x %x: %d %llx ", lat1, lon1, lat2, lon2,
-				x1, y1, x2, y2, z, enc);
-
-			decode_bbox(enc, &z, &x1, &y1);
-			tile2latlon(x1, y1, 32, &lat1, &lon1);
-
-			printf("%x %x %f %f\n", x1, y1, lat1, lon1);
-#endif
+			points[npoints].index = enc;
+			points[npoints].lat1 = lat1;
+			points[npoints].lon1 = lon1;
+			points[npoints].lat2 = lat2;
+			points[npoints].lon2 = lon2;
+			npoints++;
 		}
 	}
 
@@ -125,9 +126,9 @@ int main(int argc, char **argv) {
 		int z;
 		double lat1, lon1;
 
-		decode_bbox(points[i], &z, &x, &y);
+		decode_bbox(points[i].index, &z, &x, &y);
 		tile2latlon(x, y, 32, &lat1, &lon1);
 
-		printf("%llx %d %f,%f\n", points[i], z, lat1, lon1);
+		printf("%llx %d %f,%f    %f,%f %f,%f\n", points[i].index, z, lat1, lon1, points[i].lat1, points[i].lon1, points[i].lat2, points[i].lon2);
 	}
 }
