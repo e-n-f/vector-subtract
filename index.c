@@ -143,6 +143,21 @@ struct index {
 	int npalloc;
 };
 
+struct index *index_init() {
+	struct index *ix = malloc(sizeof(struct index));
+
+	ix->points = NULL;
+	ix->npoints = 0;
+	ix->npalloc = 0;
+
+	return ix;
+}
+
+void index_destroy(struct index *ix) {
+	free(ix->points);
+	free(ix);
+}
+
 void index_add(struct index *i, double minlat, double minlon, double maxlat, double maxlon) {
 	unsigned int x1, y1, x2, y2;
 
@@ -172,6 +187,10 @@ void index_add(struct index *i, double minlat, double minlon, double maxlat, dou
 	i->points[i->npoints].maxlat = maxlat;
 	i->points[i->npoints].maxlon = maxlon;
 	i->npoints++;
+}
+
+void index_sort(struct index *ix) {
+	qsort(ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
 }
 
 void index_lookup(struct index *ix, double minlat, double minlon, double maxlat, double maxlon, void (*callback)(struct point *, void *), void *data) {
@@ -234,34 +253,33 @@ void callback(struct point *p, void *v) {
 int main(int argc, char **argv) {
 	char s[2000];
 
-	struct index ix;
-	ix.points = NULL;
-	ix.npoints = 0;
-	ix.npalloc = 0;
+	struct index *ix = index_init();
 
 	while (fgets(s, 2000, stdin)) {
 		double minlat, minlon, maxlat, maxlon;
 
 		if (sscanf(s, "%lf,%lf %lf,%lf", &minlat, &minlon, &maxlat, &maxlon) == 4) {
-			index_add(&ix, minlat, minlon, maxlat, maxlon);
+			index_add(ix, minlat, minlon, maxlat, maxlon);
 		}
 	}
 
-	qsort(ix.points, ix.npoints, sizeof(ix.points[0]), pointcmp);
+	index_sort(ix);
 
 	int i;
-	for (i = 0; i < ix.npoints; i++) {
+	for (i = 0; i < ix->npoints; i++) {
 		int possible = 0;
 		int matchedself = 0;
 
-		index_lookup(&ix, ix.points[i].minlat, ix.points[i].minlon, ix.points[i].maxlat, ix.points[i].maxlon, callback, &possible);
+		index_lookup(ix, ix->points[i].minlat, ix->points[i].minlon, ix->points[i].maxlat, ix->points[i].maxlon, callback, &possible);
 
 		printf("%d\n", possible);
 
 #if 0
 		if (!matchedself) {
-			fprintf(stderr, "did not match self: %llx %d    %f,%f %f,%f\n", ix.points[i].index, z, ix.points[i].minlat, ix.points[i].minlon, ix.points[i].maxlat, ix.points[i].maxlon);
+			fprintf(stderr, "did not match self: %llx %d    %f,%f %f,%f\n", ix->points[i].index, z, ix->points[i].minlat, ix->points[i].minlon, ix->points[i].maxlat, ix->points[i].maxlon);
 		}
 #endif
 	}
+
+	index_destroy(ix);
 }
