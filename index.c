@@ -194,6 +194,7 @@ void index_add(struct index *i, double minlat, double minlon, double maxlat, dou
 	i->points[i->npoints].maxlat = maxlat;
 	i->points[i->npoints].maxlon = maxlon;
 
+	i->points[i->npoints].n = n;
 	i->points[i->npoints].lats = malloc(n * sizeof(double));
 	i->points[i->npoints].lons = malloc(n * sizeof(double));
 	memcpy(i->points[i->npoints].lats, lats, n * sizeof(double));
@@ -326,6 +327,7 @@ int main(int argc, char **argv) {
 
 		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
 			double minlat, minlon, maxlat, maxlon;
+			int found = 0;
 
 			if (lat1 < lat2) {
 				minlat = lat1;
@@ -351,7 +353,11 @@ int main(int argc, char **argv) {
 				maxlon = lon2;
 			}
 
-			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, NULL);
+			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &found);
+
+			if (!found) {
+				printf("not found: %f,%f %f,%f in %f,%f %f,%f\n", lat1, lon1, lat2, lon2, minlat, minlon, maxlat, maxlon);
+			}
 		}
 	}
 
