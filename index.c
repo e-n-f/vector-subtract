@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 #define MAX_ZOOM 28
 #define ZOOM_BITS 5
+
+#define FOOT .00000274
+#define BUFFER (100 * FOOT)
 
 int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2) {
 	int z;
@@ -257,11 +261,48 @@ int main(int argc, char **argv) {
 
 	while (fgets(s, 2000, stdin)) {
 		double minlat, minlon, maxlat, maxlon;
+		double lat1, lon1, lat2, lon2;
 
-		if (sscanf(s, "%lf,%lf %lf,%lf", &minlat, &minlon, &maxlat, &maxlon) == 4) {
+		if (strcmp(s, "--\n") == 0) {
+			break;
+		}
+
+		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
+			double rat = cos(lat1 * M_PI / 180);
+			double ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
+#if 0
+			double latd = lat2 - lat1;
+			double lond = (lon2 - lon1) * rat;
+			double d = sqrt(latd * latd + lond * lond);
+#endif
+
+			double lats[] = {
+				lat2 + BUFFER * sin(ang + M_PI / 4),
+				lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
+				lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
+				lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
+				lat2 + BUFFER * sin(ang + M_PI / 4),
+			};
+
+			double lons[] = {
+				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
+				lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
+				lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
+				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
+				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
+			};
+
+			int i;
+			for (i = 0; i < 5; i++) {
+				printf("%f,%f ", lats[i], lons[i]);
+			}
+			printf("\n");
+
 			index_add(ix, minlat, minlon, maxlat, maxlon);
 		}
 	}
+
+	exit(0);
 
 	index_sort(ix);
 
