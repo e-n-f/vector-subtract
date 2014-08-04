@@ -259,10 +259,44 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 	}
 }
 
+struct seg {
+	double lat1;
+	double lon1;
+
+	double lat2;
+	double lon2;
+
+	struct seg *next;
+};
+
+// http://www.ecse.rpi.edu/~wrf/Research/Short_Notes/pnpoly.html
+int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
+{
+  int i, j, c = 0;
+  for (i = 0, j = nvert-1; i < nvert; j = i++) {
+    if ( ((verty[i]>testy) != (verty[j]>testy)) &&
+	 (testx < (vertx[j]-vertx[i]) * (testy-verty[i]) / (verty[j]-verty[i]) + vertx[i]) )
+       c = !c;
+  }
+  return c;
+}
+
 void callback(struct point *p, void *v) {
-	int i;
-	for (i = 0; i < p->n + 1; i++) {
-		printf("%f,%f ", p->lats[i % p->n], p->lons[i % p->n]);
+	struct seg **s = v;
+
+	for (; *s != NULL; s = &((*s)->next)) {
+		printf("checking %f,%f to %f,%f in ",
+			(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
+
+		int p1 = pnpoly(p->n, p->lats, p->lons, (*s)->lat1, (*s)->lon1);
+		int p2 = pnpoly(p->n, p->lats, p->lons, (*s)->lat2, (*s)->lon2);
+
+		printf("  %d/%d   ", p1, p2);
+
+		int i;
+		for (i = 0; i < p->n + 1; i++) {
+			printf("%f,%f ", p->lats[i % p->n], p->lons[i % p->n]);
+		}
 	}
 
 	printf("\n");
@@ -353,11 +387,20 @@ int main(int argc, char **argv) {
 				maxlon = lon2;
 			}
 
-			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &found);
+			struct seg *s = malloc(sizeof(struct seg));
+			s->lat1 = lat1;
+			s->lon1 = lon1;
+			s->lat2 = lat2;
+			s->lon2 = lon2;
+			s->next = NULL;
+
+			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &s);
 
 			if (!found) {
 				printf("not found: %f,%f %f,%f in %f,%f %f,%f\n", lat1, lon1, lat2, lon2, minlat, minlon, maxlat, maxlon);
 			}
+
+			free(s);
 		}
 	}
 
