@@ -269,7 +269,6 @@ int main(int argc, char **argv) {
 	struct index *ix = index_init();
 
 	while (fgets(s, 2000, stdin)) {
-		double minlat, minlon, maxlat, maxlon;
 		double lat1, lon1, lat2, lon2;
 
 		if (strcmp(s, "--\n") == 0) {
@@ -279,11 +278,6 @@ int main(int argc, char **argv) {
 		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
 			double rat = cos(lat1 * M_PI / 180);
 			double ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
-#if 0
-			double latd = lat2 - lat1;
-			double lond = (lon2 - lon1) * rat;
-			double d = sqrt(latd * latd + lond * lond);
-#endif
 
 			double lats[] = {
 				lat2 + BUFFER * sin(ang + M_PI / 4),
@@ -299,10 +293,7 @@ int main(int argc, char **argv) {
 				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
 			};
 
-			minlat = 360;
-			minlon = 360;
-			maxlat = -360;
-			maxlon = -360;
+			double minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
 
 			int i;
 			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
@@ -320,35 +311,19 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			// printf("%f,%f %f,%f\n", minlat, minlon, maxlat, maxlon);
-
-			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
-				// printf("%f,%f ", lats[i], lons[i]);
-			}
-			// printf("\n");
-
 			index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
 		}
 	}
-
-	exit(0);
 
 	index_sort(ix);
 
 	int i;
 	for (i = 0; i < ix->npoints; i++) {
 		int possible = 0;
-		int matchedself = 0;
 
 		index_lookup(ix, ix->points[i].minlat, ix->points[i].minlon, ix->points[i].maxlat, ix->points[i].maxlon, callback, &possible);
 
 		printf("%d\n", possible);
-
-#if 0
-		if (!matchedself) {
-			fprintf(stderr, "did not match self: %llx %d    %f,%f %f,%f\n", ix->points[i].index, z, ix->points[i].minlat, ix->points[i].minlon, ix->points[i].maxlat, ix->points[i].maxlon);
-		}
-#endif
 	}
 
 	index_destroy(ix);
