@@ -259,8 +259,12 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 }
 
 void callback(struct point *p, void *v) {
-	int *i = v;
-	(*i)++;
+	int i;
+	for (i = 0; i < p->n + 1; i++) {
+		printf("%f,%f ", p->lats[i % p->n], p->lons[i % p->n]);
+	}
+
+	printf("\n");
 }
 
 int main(int argc, char **argv) {
@@ -317,13 +321,38 @@ int main(int argc, char **argv) {
 
 	index_sort(ix);
 
-	int i;
-	for (i = 0; i < ix->npoints; i++) {
-		int possible = 0;
+	while (fgets(s, 2000, stdin)) {
+		double lat1, lon1, lat2, lon2;
 
-		index_lookup(ix, ix->points[i].minlat, ix->points[i].minlon, ix->points[i].maxlat, ix->points[i].maxlon, callback, &possible);
+		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
+			double minlat, minlon, maxlat, maxlon;
 
-		printf("%d\n", possible);
+			if (lat1 < lat2) {
+				minlat = lat1;
+			} else {
+				minlat = lat2;
+			}
+
+			if (lon1 < lon2) {
+				minlon = lon1;
+			} else {
+				minlon = lon2;
+			}
+
+			if (lat1 > lat2) {
+				maxlat = lat1;
+			} else {
+				maxlat = lat2;
+			}
+
+			if (lon1 > lon2) {
+				maxlon = lon1;
+			} else {
+				maxlon = lon2;
+			}
+
+			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, NULL);
+		}
 	}
 
 	index_destroy(ix);
