@@ -104,6 +104,9 @@ struct point {
 	unsigned long long index;
 	double minlat, minlon;
 	double maxlat, maxlon;
+
+	int n;
+	double *lats, *lons;
 };
 
 int pointcmp(const void *v1, const void *v2) {
@@ -162,7 +165,7 @@ void index_destroy(struct index *ix) {
 	free(ix);
 }
 
-void index_add(struct index *i, double minlat, double minlon, double maxlat, double maxlon) {
+void index_add(struct index *i, double minlat, double minlon, double maxlat, double maxlon, int n, double *lats, double *lons) {
 	unsigned int x1, y1, x2, y2;
 
 	if (minlat > maxlat) {
@@ -190,6 +193,12 @@ void index_add(struct index *i, double minlat, double minlon, double maxlat, dou
 	i->points[i->npoints].minlon = minlon;
 	i->points[i->npoints].maxlat = maxlat;
 	i->points[i->npoints].maxlon = maxlon;
+
+	i->points[i->npoints].lats = malloc(n * sizeof(double));
+	i->points[i->npoints].lons = malloc(n * sizeof(double));
+	memcpy(i->points[i->npoints].lats, lats, n * sizeof(double));
+	memcpy(i->points[i->npoints].lons, lons, n * sizeof(double));
+
 	i->npoints++;
 }
 
@@ -311,14 +320,14 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			printf("%f,%f %f,%f\n", minlat, minlon, maxlat, maxlon);
+			// printf("%f,%f %f,%f\n", minlat, minlon, maxlat, maxlon);
 
 			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
-				printf("%f,%f ", lats[i], lons[i]);
+				// printf("%f,%f ", lats[i], lons[i]);
 			}
-			printf("\n");
+			// printf("\n");
 
-			index_add(ix, minlat, minlon, maxlat, maxlon);
+			index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
 		}
 	}
 
