@@ -281,7 +281,6 @@ int main(int argc, char **argv) {
 				lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
 				lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
 				lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
-				lat2 + BUFFER * sin(ang + M_PI / 4),
 			};
 
 			double lons[] = {
@@ -289,11 +288,32 @@ int main(int argc, char **argv) {
 				lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
 				lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
 				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
-				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
 			};
 
+			minlat = 360;
+			minlon = 360;
+			maxlat = -360;
+			maxlon = -360;
+
 			int i;
-			for (i = 0; i < 5; i++) {
+			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
+				if (lats[i] < minlat) {
+					minlat = lats[i];
+				}
+				if (lons[i] < minlon) {
+					minlon = lons[i];
+				}
+				if (lats[i] > maxlat) {
+					maxlat = lats[i];
+				}
+				if (lons[i] > maxlon) {
+					maxlon = lons[i];
+				}
+			}
+
+			printf("%f,%f %f,%f\n", minlat, minlon, maxlat, maxlon);
+
+			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
 				printf("%f,%f ", lats[i], lons[i]);
 			}
 			printf("\n");
