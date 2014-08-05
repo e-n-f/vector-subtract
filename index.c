@@ -308,6 +308,7 @@ int intersect(double p0_x, double p0_y, double p1_x, double p1_y,
 
 void callback(struct point *p, void *v) {
 	struct seg **s = v;
+	int check = 0;
 
 	while (*s != NULL) {
 		printf("checking %f,%f to %f,%f in ",
@@ -328,11 +329,11 @@ void callback(struct point *p, void *v) {
 		if (p1 && p2) {
 			printf("both inside\n");
 
-			struct seg **cur = s;
-			struct seg **next = &((*s)->next);
-			*s = *next;
-			s = next;
-			free(*cur);
+			struct seg *cur = *s;
+			struct seg *next = (*s)->next;
+			*s = next;
+			free(cur);
+			check = 1;
 			continue;
 		}
 
@@ -351,12 +352,12 @@ void callback(struct point *p, void *v) {
 		}
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
-			fprintf(stderr, "0 within should intersect 0 or 2\n");
-			return;
+			fprintf(stderr, "0 within should intersect 0 or 2, not %d\n", nintersect);
+			break;
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
-			fprintf(stderr, "1 within should intersect 1\n");
-			return;
+			fprintf(stderr, "1 within should intersect 1, not %d\n", nintersect);
+			break;
 		}
 
 		if (p1 || p2) {
@@ -367,6 +368,7 @@ void callback(struct point *p, void *v) {
 				(*s)->lat2 = intersect_lat[0];
 				(*s)->lon2 = intersect_lon[0];
 			}
+			check = 1;
 		} else if (nintersect == 2) {
 			double rat = cos((*s)->lat1 * M_PI / 180);
 			double latd1 = (*s)->lat1 - intersect_lat[0];
@@ -398,9 +400,18 @@ void callback(struct point *p, void *v) {
 			printf("split %f,%f %f,%f and %f,%f %f,%f\n",
 				(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2,
 				n->lat1, n->lon1, n->lat2, n->lon2);
+			check = 1;
 		}
 
 		s = &((*s)->next);
+	}
+
+	if (check) {
+		s = v;
+		while (*s != NULL) {
+			printf("after: %f,%f to %f,%f\n", (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
+			s = &((*s)->next);
+		}
 	}
 }
 
