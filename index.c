@@ -284,7 +284,7 @@ int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
 void callback(struct point *p, void *v) {
 	struct seg **s = v;
 
-	for (; *s != NULL; s = &((*s)->next)) {
+	while (*s != NULL) {
 		printf("checking %f,%f to %f,%f in ",
 			(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
 
@@ -297,9 +297,22 @@ void callback(struct point *p, void *v) {
 		for (i = 0; i < p->n + 1; i++) {
 			printf("%f,%f ", p->lats[i % p->n], p->lons[i % p->n]);
 		}
-	}
 
-	printf("\n");
+		printf("\n");
+
+		if (p1 && p2) {
+			printf("both inside\n");
+
+			struct seg **cur = s;
+			struct seg **next = &((*s)->next);
+			*s = *next;
+			s = next;
+			free(*cur);
+			continue;
+		}
+
+		s = &((*s)->next);
+	}
 }
 
 int main(int argc, char **argv) {
