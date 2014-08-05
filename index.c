@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <ctype.h>
 #include <string.h>
 
 #define MAX_ZOOM 28
@@ -492,20 +493,34 @@ int main(int argc, char **argv) {
 				maxlon = lon2;
 			}
 
-			struct seg *s = malloc(sizeof(struct seg));
-			s->lat1 = lat1;
-			s->lon1 = lon1;
-			s->lat2 = lat2;
-			s->lon2 = lon2;
-			s->next = NULL;
+			struct seg *seg = malloc(sizeof(struct seg));
+			seg->lat1 = lat1;
+			seg->lon1 = lon1;
+			seg->lat2 = lat2;
+			seg->lon2 = lon2;
+			seg->next = NULL;
 
-			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &s);
+			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &seg);
+
+			char *cp = s;
+			for (; *cp != '\0' && !isspace(*cp); cp++) {
+				;
+			}
+			for (; *cp != '\0' && isspace(*cp) && *cp != '\n'; cp++) {
+				;
+			}
+			for (; *cp != '\0' && !isspace(*cp); cp++) {
+				;
+			}
+			for (; *cp != '\0' && isspace(*cp) && *cp != '\n'; cp++) {
+				;
+			}
 
 			struct seg *next;
-			for (; s != NULL; s = next) {
-				next = s->next;
-				printf("%f,%f %f,%f\n", s->lat1, s->lon1, s->lat2, s->lon2);
-				free(s);
+			for (; seg != NULL; seg = next) {
+				next = seg->next;
+				printf("%f,%f %f,%f %s", seg->lat1, seg->lon1, seg->lat2, seg->lon2, cp);
+				free(seg);
 			}
 		}
 	}
