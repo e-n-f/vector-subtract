@@ -367,7 +367,37 @@ void callback(struct point *p, void *v) {
 				(*s)->lat2 = intersect_lat[0];
 				(*s)->lon2 = intersect_lon[0];
 			}
-		} else {
+		} else if (nintersect == 2) {
+			double rat = cos((*s)->lat1 * M_PI / 180);
+			double latd1 = (*s)->lat1 - intersect_lat[0];
+			double lond1 = ((*s)->lon1 - intersect_lon[0]) * rat;
+			double d1 = sqrt(latd1 * latd1 + lond1 * lond1);
+
+			double latd2 = (*s)->lat1 - intersect_lat[1];
+			double lond2 = ((*s)->lon1 - intersect_lon[1]) * rat;
+			double d2 = sqrt(latd2 * latd2 + lond2 * lond2);
+
+			struct seg *n = malloc(sizeof(struct seg));
+			n->next = (*s)->next;
+			n->lat2 = (*s)->lat2;
+			n->lon2 = (*s)->lon2;
+			(*s)->next = n;
+
+			if (d1 < d2) {
+				(*s)->lat2 = intersect_lat[0];
+				(*s)->lon2 = intersect_lon[0];
+				n->lat1 = intersect_lat[1];
+				n->lon1 = intersect_lon[1];
+			} else {
+				(*s)->lat2 = intersect_lat[1];
+				(*s)->lon2 = intersect_lon[1];
+				n->lat1 = intersect_lat[0];
+				n->lon1 = intersect_lon[0];
+			}
+
+			printf("split %f,%f %f,%f and %f,%f %f,%f\n",
+				(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2,
+				n->lat1, n->lon1, n->lat2, n->lon2);
 		}
 
 		s = &((*s)->next);
