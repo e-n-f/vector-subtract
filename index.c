@@ -308,34 +308,16 @@ int intersect(double p0_x, double p0_y, double p1_x, double p1_y,
 
 void callback(struct point *p, void *v) {
 	struct seg **s = v;
-	int check = 0;
-
-	printf("\n");
 
 	while (*s != NULL) {
-		printf("checking %f,%f to %f,%f in ",
-			(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
-
 		int p1 = pnpoly(p->n, p->lats, p->lons, (*s)->lat1, (*s)->lon1);
 		int p2 = pnpoly(p->n, p->lats, p->lons, (*s)->lat2, (*s)->lon2);
 
-		printf("  %d/%d   ", p1, p2);
-
-		int i;
-		for (i = 0; i < p->n + 1; i++) {
-			printf("%f,%f ", p->lats[i % p->n], p->lons[i % p->n]);
-		}
-
-		printf("\n");
-
 		if (p1 && p2) {
-			printf("both inside\n");
-
 			struct seg *cur = *s;
 			struct seg *next = (*s)->next;
 			*s = next;
 			free(cur);
-			check = 1;
 			continue;
 		}
 
@@ -344,21 +326,21 @@ void callback(struct point *p, void *v) {
 		double intersect_lon[p->n];
 		int nintersect = 0;
 
+		int i;
 		for (i = 0; i < p->n; i++) {
 			intersects[i] = intersect(p->lats[i], p->lons[i], p->lats[(i + 1) % p->n], p->lons[(i + 1) % p->n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[nintersect], &intersect_lon[nintersect]);
 
 			if (intersects[i]) {
-				printf("intersects: %d:  %f,%f\n", i, intersect_lat[nintersect], intersect_lon[nintersect]);
 				nintersect++;
 			}
 		}
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
-			fprintf(stdout, "0 within should intersect 0 or 2, not %d\n", nintersect);
+			fprintf(stderr, "0 within should intersect 0 or 2, not %d\n", nintersect);
 			break;
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
-			fprintf(stdout, "1 within should intersect 1, not %d\n", nintersect);
+			fprintf(stderr, "1 within should intersect 1, not %d\n", nintersect);
 			break;
 		}
 
@@ -370,7 +352,6 @@ void callback(struct point *p, void *v) {
 				(*s)->lat2 = intersect_lat[0];
 				(*s)->lon2 = intersect_lon[0];
 			}
-			check = 1;
 		} else if (nintersect == 2) {
 			double rat = cos((*s)->lat1 * M_PI / 180);
 			double latd1 = (*s)->lat1 - intersect_lat[0];
@@ -399,25 +380,12 @@ void callback(struct point *p, void *v) {
 				n->lon1 = intersect_lon[0];
 			}
 
-			printf("split %f,%f %f,%f and %f,%f %f,%f\n",
-				(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2,
-				n->lat1, n->lon1, n->lat2, n->lon2);
-			check = 1;
-
 			// don't recheck the split second half, which will
 			// often mismatch by having one end right on the line
 			s = &((*s)->next);
 		}
 
 		s = &((*s)->next);
-	}
-
-	if (check) {
-		s = v;
-		while (*s != NULL) {
-			printf("after: %f,%f to %f,%f\n", (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
-			s = &((*s)->next);
-		}
 	}
 }
 
@@ -480,7 +448,6 @@ int main(int argc, char **argv) {
 
 		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
 			double minlat, minlon, maxlat, maxlon;
-			int found = 0;
 
 			if (lat1 < lat2) {
 				minlat = lat1;
@@ -521,12 +488,6 @@ int main(int argc, char **argv) {
 				printf("%f,%f %f,%f\n", s->lat1, s->lon1, s->lat2, s->lon2);
 				free(s);
 			}
-
-#if 0
-			if (!found) {
-				printf("not found: %f,%f %f,%f in %f,%f %f,%f\n", lat1, lon1, lat2, lon2, minlat, minlon, maxlat, maxlon);
-			}
-#endif
 		}
 	}
 
