@@ -207,7 +207,7 @@ void index_sort(struct index *ix) {
 	qsort(ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
 }
 
-void index_lookup(struct index *ix, double minlat, double minlon, double maxlat, double maxlon, void (*callback)(struct point *, void *), void *data) {
+void index_lookup(struct index *ix, double minlat, double minlon, double maxlat, double maxlon, int (*callback)(struct point *, void *), void *data) {
 	unsigned x1, y1, x2, y2;
 	int z;
 	unsigned x, y;
@@ -252,7 +252,9 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 				continue;
 			}
 
-			callback(j, data);
+			if (callback(j, data)) {
+				return;
+			}
 		}
 
 		// printf("\t%016llx  %d\n", end, zz);
@@ -306,7 +308,7 @@ int intersect(double p0_x, double p0_y, double p1_x, double p1_y,
     return 0; // No collision
 }
 
-void callback(struct point *p, void *v) {
+int callback(struct point *p, void *v) {
 	struct seg **s = v;
 
 	while (*s != NULL) {
@@ -386,6 +388,13 @@ void callback(struct point *p, void *v) {
 		}
 
 		s = &((*s)->next);
+	}
+
+	s = v;
+	if (*s == NULL) {
+		return 1;
+	} else {
+		return 0;
 	}
 }
 
