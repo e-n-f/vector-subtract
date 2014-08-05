@@ -281,6 +281,31 @@ int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
   return c;
 }
 
+// http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+int intersect(double p0_x, double p0_y, double p1_x, double p1_y, 
+    double p2_x, double p2_y, double p3_x, double p3_y, double *i_x, double *i_y)
+{
+    double s1_x, s1_y, s2_x, s2_y;
+    s1_x = p1_x - p0_x;     s1_y = p1_y - p0_y;
+    s2_x = p3_x - p2_x;     s2_y = p3_y - p2_y;
+
+    double s, t;
+    s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
+    t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
+
+    if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+    {
+        // Collision detected
+        if (i_x != NULL)
+            *i_x = p0_x + (t * s1_x);
+        if (i_y != NULL)
+            *i_y = p0_y + (t * s1_y);
+        return 1;
+    }
+
+    return 0; // No collision
+}
+
 void callback(struct point *p, void *v) {
 	struct seg **s = v;
 
@@ -309,6 +334,27 @@ void callback(struct point *p, void *v) {
 			s = next;
 			free(*cur);
 			continue;
+		}
+
+		int intersects[p->n];
+		double intersect_lat[p->n];
+		double intersect_lon[p->n];
+		int nintersect = 0;
+
+		for (i = 0; i < p->n; i++) {
+			intersects[i] = intersect(p->lats[i], p->lons[i], p->lats[(i + 1) % p->n], p->lons[(i + 1) % p->n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[i], &intersect_lon[i]);
+
+			if (intersects[i]) {
+				printf("intersects: %d:  %f,%f\n", i, intersect_lat[i], intersect_lon[i]);
+				nintersect++;
+			}
+		}
+
+		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
+			printf("0 within should intersect 0 or 2\n");
+		}
+		if (p1 + p2 == 1 && nintersect != 1) {
+			printf("1 within should intersect 1\n");
 		}
 
 		s = &((*s)->next);
