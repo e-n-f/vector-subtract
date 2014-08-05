@@ -351,10 +351,30 @@ void callback(struct point *p, void *v) {
 		}
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
-			printf("0 within should intersect 0 or 2\n");
+			fprintf(stderr, "0 within should intersect 0 or 2\n");
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
-			printf("1 within should intersect 1\n");
+			fprintf(stderr, "1 within should intersect 1\n");
+		}
+
+		if (p1 || p2) {
+			double a, o;
+
+			for (i = 0; i < p->n; i++) {
+				if (intersects[i]) {
+					a = intersect_lat[i];
+					o = intersect_lon[i];
+					break;
+				}
+			}
+
+			if (p1) {
+				(*s)->lat1 = a;
+				(*s)->lon1 = o;
+			} else {
+				(*s)->lat2 = a;
+				(*s)->lon2 = o;
+			}
 		}
 
 		s = &((*s)->next);
@@ -455,11 +475,18 @@ int main(int argc, char **argv) {
 
 			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &s);
 
+			struct seg *next;
+			for (; s != NULL; s = next) {
+				next = s->next;
+				printf("%f,%f %f,%f\n", s->lat1, s->lon1, s->lat2, s->lon2);
+				free(s);
+			}
+
+#if 0
 			if (!found) {
 				printf("not found: %f,%f %f,%f in %f,%f %f,%f\n", lat1, lon1, lat2, lon2, minlat, minlon, maxlat, maxlon);
 			}
-
-			free(s);
+#endif
 		}
 	}
 
