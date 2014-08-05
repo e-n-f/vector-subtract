@@ -511,4 +511,5 @@ int main(int argc, char **argv) {
 	}
 
 	index_destroy(ix);
+	return 0;
 }
