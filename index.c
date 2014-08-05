@@ -84,8 +84,8 @@ void decode_bbox(unsigned long long code, int *z, unsigned int *wx, unsigned int
 }
 
 // http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-void latlon2tile(double lat, double lon, int zoom, unsigned int *x, unsigned int *y) {
-	double lat_rad = lat * M_PI / 180;
+void latlon2tile(float lat, float lon, int zoom, unsigned int *x, unsigned int *y) {
+	float lat_rad = lat * M_PI / 180;
 	unsigned long long n = 1LL << zoom;
 
 	*x = n * ((lon + 180) / 360);
@@ -93,20 +93,20 @@ void latlon2tile(double lat, double lon, int zoom, unsigned int *x, unsigned int
 }
 
 // http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-void tile2latlon(unsigned int x, unsigned int y, int zoom, double *lat, double *lon) {
+void tile2latlon(unsigned int x, unsigned int y, int zoom, float *lat, float *lon) {
 	unsigned long long n = 1LL << zoom;
 	*lon = 360.0 * x / n - 180.0;
-	double lat_rad = atan(sinh(M_PI * (1 - 2.0 * y / n)));
+	float lat_rad = atan(sinh(M_PI * (1 - 2.0 * y / n)));
 	*lat = lat_rad * 180 / M_PI;
 }
 
 struct point {
 	unsigned long long index;
-	double minlat, minlon;
-	double maxlat, maxlon;
+	float minlat, minlon;
+	float maxlat, maxlon;
 
 	int n;
-	double *lats, *lons;
+	float *lats, *lons;
 };
 
 int pointcmp(const void *v1, const void *v2) {
@@ -165,16 +165,16 @@ void index_destroy(struct index *ix) {
 	free(ix);
 }
 
-void index_add(struct index *i, double minlat, double minlon, double maxlat, double maxlon, int n, double *lats, double *lons) {
+void index_add(struct index *i, float minlat, float minlon, float maxlat, float maxlon, int n, float *lats, float *lons) {
 	unsigned int x1, y1, x2, y2;
 
 	if (minlat > maxlat) {
-		double swap = minlat;
+		float swap = minlat;
 		minlat = maxlat;
 		maxlat = swap;
 	}
 	if (minlon > maxlon) {
-		double swap = minlon;
+		float swap = minlon;
 		minlon = maxlon;
 		maxlon = swap;
 	}
@@ -195,10 +195,10 @@ void index_add(struct index *i, double minlat, double minlon, double maxlat, dou
 	i->points[i->npoints].maxlon = maxlon;
 
 	i->points[i->npoints].n = n;
-	i->points[i->npoints].lats = malloc(n * sizeof(double));
-	i->points[i->npoints].lons = malloc(n * sizeof(double));
-	memcpy(i->points[i->npoints].lats, lats, n * sizeof(double));
-	memcpy(i->points[i->npoints].lons, lons, n * sizeof(double));
+	i->points[i->npoints].lats = malloc(n * sizeof(float));
+	i->points[i->npoints].lons = malloc(n * sizeof(float));
+	memcpy(i->points[i->npoints].lats, lats, n * sizeof(float));
+	memcpy(i->points[i->npoints].lons, lons, n * sizeof(float));
 
 	i->npoints++;
 }
@@ -207,7 +207,7 @@ void index_sort(struct index *ix) {
 	qsort(ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
 }
 
-void index_lookup(struct index *ix, double minlat, double minlon, double maxlat, double maxlon, int (*callback)(struct point *, void *), void *data) {
+void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, float maxlon, int (*callback)(struct point *, void *), void *data) {
 	unsigned x1, y1, x2, y2;
 	int z;
 	unsigned x, y;
@@ -262,17 +262,17 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 }
 
 struct seg {
-	double lat1;
-	double lon1;
+	float lat1;
+	float lon1;
 
-	double lat2;
-	double lon2;
+	float lat2;
+	float lon2;
 
 	struct seg *next;
 };
 
 // http://www.ecse.rpi.edu/~wrf/Research/Short_Notes/pnpoly.html
-int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
+int pnpoly(int nvert, float *vertx, float *verty, float testx, float testy)
 {
   int i, j, c = 0;
   for (i = 0, j = nvert-1; i < nvert; j = i++) {
@@ -284,14 +284,14 @@ int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
 }
 
 // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
-int intersect(double p0_x, double p0_y, double p1_x, double p1_y, 
-    double p2_x, double p2_y, double p3_x, double p3_y, double *i_x, double *i_y)
+int intersect(float p0_x, float p0_y, float p1_x, float p1_y, 
+    float p2_x, float p2_y, float p3_x, float p3_y, float *i_x, float *i_y)
 {
-    double s1_x, s1_y, s2_x, s2_y;
+    float s1_x, s1_y, s2_x, s2_y;
     s1_x = p1_x - p0_x;     s1_y = p1_y - p0_y;
     s2_x = p3_x - p2_x;     s2_y = p3_y - p2_y;
 
-    double s, t;
+    float s, t;
     s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
     t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
 
@@ -324,8 +324,8 @@ int callback(struct point *p, void *v) {
 		}
 
 		int intersects[p->n];
-		double intersect_lat[p->n];
-		double intersect_lon[p->n];
+		float intersect_lat[p->n];
+		float intersect_lon[p->n];
 		int nintersect = 0;
 
 		int i;
@@ -355,14 +355,14 @@ int callback(struct point *p, void *v) {
 				(*s)->lon2 = intersect_lon[0];
 			}
 		} else if (nintersect == 2) {
-			double rat = cos((*s)->lat1 * M_PI / 180);
-			double latd1 = (*s)->lat1 - intersect_lat[0];
-			double lond1 = ((*s)->lon1 - intersect_lon[0]) * rat;
-			double d1 = sqrt(latd1 * latd1 + lond1 * lond1);
+			float rat = cos((*s)->lat1 * M_PI / 180);
+			float latd1 = (*s)->lat1 - intersect_lat[0];
+			float lond1 = ((*s)->lon1 - intersect_lon[0]) * rat;
+			float d1 = sqrt(latd1 * latd1 + lond1 * lond1);
 
-			double latd2 = (*s)->lat1 - intersect_lat[1];
-			double lond2 = ((*s)->lon1 - intersect_lon[1]) * rat;
-			double d2 = sqrt(latd2 * latd2 + lond2 * lond2);
+			float latd2 = (*s)->lat1 - intersect_lat[1];
+			float lond2 = ((*s)->lon1 - intersect_lon[1]) * rat;
+			float d2 = sqrt(latd2 * latd2 + lond2 * lond2);
 
 			struct seg *n = malloc(sizeof(struct seg));
 			n->next = (*s)->next;
@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
 	struct index *ix = index_init();
 
 	while (fgets(s, 2000, stdin)) {
-		double lat1, lon1, lat2, lon2;
+		float lat1, lon1, lat2, lon2;
 
 		if (seq++ % 100000 == 0) {
 			fprintf(stderr, "%.1f million\r", seq / 1000000.0);
@@ -415,25 +415,25 @@ int main(int argc, char **argv) {
 			break;
 		}
 
-		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
-			double rat = cos(lat1 * M_PI / 180);
-			double ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
+		if (sscanf(s, "%f,%f %f,%f", &lat1, &lon1, &lat2, &lon2) == 4) {
+			float rat = cos(lat1 * M_PI / 180);
+			float ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
 
-			double lats[] = {
+			float lats[] = {
 				lat2 + BUFFER * sin(ang + M_PI / 4),
 				lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
 				lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
 				lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
 			};
 
-			double lons[] = {
+			float lons[] = {
 				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
 				lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
 				lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
 				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
 			};
 
-			double minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
+			float minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
 
 			int i;
 			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
@@ -459,14 +459,14 @@ int main(int argc, char **argv) {
 	seq = 0;
 
 	while (fgets(s, 2000, stdin)) {
-		double lat1, lon1, lat2, lon2;
+		float lat1, lon1, lat2, lon2;
 
 		if (seq++ % 10000 == 0) {
 			fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
 		}
 
-		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
-			double minlat, minlon, maxlat, maxlon;
+		if (sscanf(s, "%f,%f %f,%f", &lat1, &lon1, &lat2, &lon2) == 4) {
+			float minlat, minlon, maxlat, maxlon;
 
 			if (lat1 < lat2) {
 				minlat = lat1;
