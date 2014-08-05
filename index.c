@@ -391,11 +391,16 @@ void callback(struct point *p, void *v) {
 
 int main(int argc, char **argv) {
 	char s[2000];
+	long long seq = 0;
 
 	struct index *ix = index_init();
 
 	while (fgets(s, 2000, stdin)) {
 		double lat1, lon1, lat2, lon2;
+
+		if (seq++ % 100000 == 0) {
+			fprintf(stderr, "%.1f million\r", seq / 1000000.0);
+		}
 
 		if (strcmp(s, "--\n") == 0) {
 			break;
@@ -442,9 +447,14 @@ int main(int argc, char **argv) {
 	}
 
 	index_sort(ix);
+	seq = 0;
 
 	while (fgets(s, 2000, stdin)) {
 		double lat1, lon1, lat2, lon2;
+
+		if (seq++ % 10000 == 0) {
+			fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
+		}
 
 		if (sscanf(s, "%lf,%lf %lf,%lf", &lat1, &lon1, &lat2, &lon2) == 4) {
 			double minlat, minlon, maxlat, maxlon;
