@@ -310,6 +310,8 @@ void callback(struct point *p, void *v) {
 	struct seg **s = v;
 	int check = 0;
 
+	printf("\n");
+
 	while (*s != NULL) {
 		printf("checking %f,%f to %f,%f in ",
 			(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2);
@@ -352,11 +354,11 @@ void callback(struct point *p, void *v) {
 		}
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
-			fprintf(stderr, "0 within should intersect 0 or 2, not %d\n", nintersect);
+			fprintf(stdout, "0 within should intersect 0 or 2, not %d\n", nintersect);
 			break;
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
-			fprintf(stderr, "1 within should intersect 1, not %d\n", nintersect);
+			fprintf(stdout, "1 within should intersect 1, not %d\n", nintersect);
 			break;
 		}
 
@@ -401,6 +403,10 @@ void callback(struct point *p, void *v) {
 				(*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2,
 				n->lat1, n->lon1, n->lat2, n->lon2);
 			check = 1;
+
+			// don't recheck the split second half, which will
+			// often mismatch by having one end right on the line
+			s = &((*s)->next);
 		}
 
 		s = &((*s)->next);
