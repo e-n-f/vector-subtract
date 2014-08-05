@@ -217,7 +217,7 @@ void index_lookup(struct index *ix, double minlat, double minlon, double maxlat,
 	get_bbox_tile(x1, y1, x2, y2, &z, &x, &y);
 
 	int zz;
-	for (zz = 0; zz <= MAX_ZOOM; zz++) {
+	for (zz = MAX_ZOOM; zz >= 0; zz--) {
 		unsigned long long start, end;
 
 		if (zz < z) {
