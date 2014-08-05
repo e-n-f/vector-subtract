@@ -342,39 +342,32 @@ void callback(struct point *p, void *v) {
 		int nintersect = 0;
 
 		for (i = 0; i < p->n; i++) {
-			intersects[i] = intersect(p->lats[i], p->lons[i], p->lats[(i + 1) % p->n], p->lons[(i + 1) % p->n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[i], &intersect_lon[i]);
+			intersects[i] = intersect(p->lats[i], p->lons[i], p->lats[(i + 1) % p->n], p->lons[(i + 1) % p->n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[nintersect], &intersect_lon[nintersect]);
 
 			if (intersects[i]) {
-				printf("intersects: %d:  %f,%f\n", i, intersect_lat[i], intersect_lon[i]);
+				printf("intersects: %d:  %f,%f\n", i, intersect_lat[nintersect], intersect_lon[nintersect]);
 				nintersect++;
 			}
 		}
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
 			fprintf(stderr, "0 within should intersect 0 or 2\n");
+			return;
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
 			fprintf(stderr, "1 within should intersect 1\n");
+			return;
 		}
 
 		if (p1 || p2) {
-			double a, o;
-
-			for (i = 0; i < p->n; i++) {
-				if (intersects[i]) {
-					a = intersect_lat[i];
-					o = intersect_lon[i];
-					break;
-				}
-			}
-
 			if (p1) {
-				(*s)->lat1 = a;
-				(*s)->lon1 = o;
+				(*s)->lat1 = intersect_lat[0];
+				(*s)->lon1 = intersect_lon[0];
 			} else {
-				(*s)->lat2 = a;
-				(*s)->lon2 = o;
+				(*s)->lat2 = intersect_lat[0];
+				(*s)->lon2 = intersect_lon[0];
 			}
+		} else {
 		}
 
 		s = &((*s)->next);
