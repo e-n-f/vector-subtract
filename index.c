@@ -8,7 +8,7 @@
 #define ZOOM_BITS 5
 
 #define FOOT .00000274
-#define BUFFER (100 * FOOT)
+#define BUFFER (50 * FOOT)
 
 int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2) {
 	int z;
