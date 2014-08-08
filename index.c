@@ -101,13 +101,17 @@ void tile2latlon(unsigned int x, unsigned int y, int zoom, float *lat, float *lo
 	*lat = lat_rad * 180 / M_PI;
 }
 
-struct point {
-	unsigned long long index;
+struct pointdata {
 	float minlat, minlon;
 	float maxlat, maxlon;
 
 	int n;
-	float *lats, *lons;
+	float latlon[0];
+};
+
+struct point {
+	unsigned long long index;
+	struct pointdata *pointdata;
 };
 
 int pointcmp(const void *v1, const void *v2) {
@@ -190,16 +194,16 @@ void index_add(struct index *i, float minlat, float minlon, float maxlat, float 
 	}
 
 	i->points[i->npoints].index = enc;
-	i->points[i->npoints].minlat = minlat;
-	i->points[i->npoints].minlon = minlon;
-	i->points[i->npoints].maxlat = maxlat;
-	i->points[i->npoints].maxlon = maxlon;
 
-	i->points[i->npoints].n = n;
-	i->points[i->npoints].lats = malloc(n * sizeof(float));
-	i->points[i->npoints].lons = malloc(n * sizeof(float));
-	memcpy(i->points[i->npoints].lats, lats, n * sizeof(float));
-	memcpy(i->points[i->npoints].lons, lons, n * sizeof(float));
+	i->points[i->npoints].pointdata = malloc(sizeof(struct pointdata) + 2 * n * sizeof(float));
+	i->points[i->npoints].pointdata->minlat = minlat;
+	i->points[i->npoints].pointdata->minlon = minlon;
+	i->points[i->npoints].pointdata->maxlat = maxlat;
+	i->points[i->npoints].pointdata->maxlon = maxlon;
+	i->points[i->npoints].pointdata->n = n;
+
+	memcpy(i->points[i->npoints].pointdata->latlon, lats, n * sizeof(float));
+	memcpy(i->points[i->npoints].pointdata->latlon + n, lons, n * sizeof(float));
 
 	i->npoints++;
 }
@@ -246,10 +250,10 @@ void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, fl
 		struct point *j;
 		for (j = pstart; j <= pend; j++) {
 			// reject by bbox
-			if (j->minlat > maxlat ||
-			    j->minlon > maxlon ||
-			    minlat > j->maxlat ||
-			    minlon > j->maxlon) {
+			if (j->pointdata->minlat > maxlat ||
+			    j->pointdata->minlon > maxlon ||
+			    minlat > j->pointdata->maxlat ||
+			    minlon > j->pointdata->maxlon) {
 				continue;
 			}
 
@@ -313,8 +317,8 @@ int callback(struct point *p, void *v) {
 	struct seg **s = v;
 
 	while (*s != NULL) {
-		int p1 = pnpoly(p->n, p->lats, p->lons, (*s)->lat1, (*s)->lon1);
-		int p2 = pnpoly(p->n, p->lats, p->lons, (*s)->lat2, (*s)->lon2);
+		int p1 = pnpoly(p->pointdata->n, p->pointdata->latlon, p->pointdata->latlon + p->pointdata->n, (*s)->lat1, (*s)->lon1);
+		int p2 = pnpoly(p->pointdata->n, p->pointdata->latlon, p->pointdata->latlon + p->pointdata->n, (*s)->lat2, (*s)->lon2);
 
 		if (p1 && p2) {
 			struct seg *cur = *s;
@@ -324,14 +328,18 @@ int callback(struct point *p, void *v) {
 			continue;
 		}
 
-		int intersects[p->n];
-		float intersect_lat[p->n];
-		float intersect_lon[p->n];
+		int intersects[p->pointdata->n];
+		float intersect_lat[p->pointdata->n];
+		float intersect_lon[p->pointdata->n];
 		int nintersect = 0;
 
+		int n = p->pointdata->n;
+		float *lats = p->pointdata->latlon;
+		float *lons = p->pointdata->latlon + n;
+
 		int i;
-		for (i = 0; i < p->n; i++) {
-			intersects[i] = intersect(p->lats[i], p->lons[i], p->lats[(i + 1) % p->n], p->lons[(i + 1) % p->n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[nintersect], &intersect_lon[nintersect]);
+		for (i = 0; i < n; i++) {
+			intersects[i] = intersect(lats[i], lons[i], lats[(i + 1) % n], lons[(i + 1) % n], (*s)->lat1, (*s)->lon1, (*s)->lat2, (*s)->lon2, &intersect_lat[nintersect], &intersect_lon[nintersect]);
 
 			if (intersects[i]) {
 				nintersect++;
