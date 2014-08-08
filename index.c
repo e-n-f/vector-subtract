@@ -348,11 +348,13 @@ int callback(struct point *p, void *v) {
 
 		if (p1 + p2 == 0 && (nintersect != 2 && nintersect != 0)) {
 			// fprintf(stderr, "0 within should intersect 0 or 2, not %d\n", nintersect);
-			break;
+			s = &((*s)->next);
+			continue;
 		}
 		if (p1 + p2 == 1 && nintersect != 1) {
 			// fprintf(stderr, "1 within should intersect 1, not %d\n", nintersect);
-			break;
+			s = &((*s)->next);
+			continue;
 		}
 
 		if (p1 || p2) {
