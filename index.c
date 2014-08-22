@@ -212,6 +212,41 @@ void index_sort(struct index *ix) {
 	qsort(ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
 }
 
+int range_lookup(struct index *ix, float minlat, float minlon, float maxlat, float maxlon, int (*callback)(struct point *, void *), void *data, long long start, long long end) {
+	struct point *pstart = search(&start, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
+	struct point *pend = search(&end, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
+
+	if (pend >= ix->points + ix->npoints) {
+		pend = ix->points + ix->npoints - 1;
+	}
+	while (pstart > ix->points && pointcmp(pstart - 1, &start) == 0) {
+		pstart--;
+	}
+	if (pointcmp(pstart, &start) < 0) {
+		pstart++;
+	}
+	if (pointcmp(pend, &end) > 0) {
+		pend--;
+	}
+
+	struct point *j;
+	for (j = pstart; j <= pend; j++) {
+		// reject by bbox
+		if (j->pointdata->minlat > maxlat ||
+		    j->pointdata->minlon > maxlon ||
+		    minlat > j->pointdata->maxlat ||
+		    minlon > j->pointdata->maxlon) {
+			continue;
+		}
+
+		if (callback(j, data)) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, float maxlon, int (*callback)(struct point *, void *), void *data) {
 	unsigned x1, y1, x2, y2;
 	int z;
@@ -228,41 +263,13 @@ void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, fl
 		if (zz < z) {
 			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
 		} else {
+			// look up each of the zoom level zz substrings of this line
 			encode_tile(zz, z, x, y, &start, &end);
 		}
 
-		struct point *pstart = search(&start, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
-		struct point *pend = search(&end, ix->points, ix->npoints, sizeof(ix->points[0]), pointcmp);
-
-		if (pend >= ix->points + ix->npoints) {
-			pend = ix->points + ix->npoints - 1;
+		if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+			return;
 		}
-		while (pstart > ix->points && pointcmp(pstart - 1, &start) == 0) {
-			pstart--;
-		}
-		if (pointcmp(pstart, &start) < 0) {
-			pstart++;
-		}
-		if (pointcmp(pend, &end) > 0) {
-			pend--;
-		}
-
-		struct point *j;
-		for (j = pstart; j <= pend; j++) {
-			// reject by bbox
-			if (j->pointdata->minlat > maxlat ||
-			    j->pointdata->minlon > maxlon ||
-			    minlat > j->pointdata->maxlat ||
-			    minlon > j->pointdata->maxlon) {
-				continue;
-			}
-
-			if (callback(j, data)) {
-				return;
-			}
-		}
-
-		// printf("\t%016llx  %d\n", end, zz);
 	}
 }
 
