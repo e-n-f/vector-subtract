@@ -256,19 +256,23 @@ void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, fl
 	latlon2tile(maxlat, maxlon, 32, &x2, &y2);
 	get_bbox_tile(x1, y1, x2, y2, &z, &x, &y);
 
-	int zz;
-	for (zz = MAX_ZOOM; zz >= 0; zz--) {
+	int z1 = z;
+	int z2 = z + 1;
+
+	for (; z1 >= 0 || z2 <= MAX_ZOOM; z1--, z2++) {
 		unsigned long long start, end;
 
-		if (zz < z) {
-			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
-		} else {
-			// look up each of the zoom level zz substrings of this line
-			encode_tile(zz, z, x, y, &start, &end);
+		if (z1 >= 0) {
+			encode_tile(z1, z1, x >> (z - z1), y >> (z - z1), &start, &end);
+			if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+				return;
+			}
 		}
-
-		if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
-			return;
+		if (z2 <= MAX_ZOOM) {
+			encode_tile(z2, z, x, y, &start, &end);
+			if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+				return;
+			}
 		}
 	}
 }
