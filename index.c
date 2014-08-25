@@ -247,6 +247,22 @@ int range_lookup(struct index *ix, float minlat, float minlon, float maxlat, flo
 	return 0;
 }
 
+unsigned umin(unsigned a, unsigned b) {
+	if (a < b) {
+		return a;
+	} else {
+		return b;
+	}
+}
+
+unsigned umax(unsigned a, unsigned b) {
+	if (a > b) {
+		return a;
+	} else {
+		return b;
+	}
+}
+
 void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, float maxlon, int (*callback)(struct point *, void *), void *data) {
 	unsigned x1, y1, x2, y2;
 	int z;
@@ -260,15 +276,68 @@ void index_lookup(struct index *ix, float minlat, float minlon, float maxlat, fl
 	for (zz = MAX_ZOOM; zz >= 0; zz--) {
 		unsigned long long start, end;
 
-		if (zz < z) {
+		if (zz <= z) {
 			encode_tile(zz, zz, x >> (z - zz), y >> (z - zz), &start, &end);
-		} else {
-			// look up each of the zoom level zz substrings of this line
-			encode_tile(zz, z, x, y, &start, &end);
-		}
 
-		if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
-			return;
+			if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+				return;
+			}
+		} else {
+			//printf("doing %016x,%016x %016x,%016x at zoom %d\n", x1, y1, x2, y2, zz);
+
+			unsigned zx1 = x1 >> (32 - zz);
+			unsigned zy1 = y1 >> (32 - zz);
+
+			unsigned zx2 = x2 >> (32 - zz);
+			unsigned zy2 = y2 >> (32 - zz);
+
+			//printf("so that's %016x,%016x %016x,%016x\n", zx1, zy1, zx2, zy2);
+
+			if (zx1 == zx2) {
+				unsigned ymin = umin(zy1, zy2);
+				unsigned ymax = umax(zy1, zy2);
+
+				unsigned zy;
+				for (zy = ymin; zy <= ymax; zy++) {
+					//printf("vertical %016x,%016x\n", zx1, zy);
+
+					encode_tile(zz, zz, zx1, zy, &start, &end);
+
+					if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+						return;
+					}
+				}
+			} else {
+				unsigned xmin = umin(zx1, zx2);
+				unsigned xmax = umax(zx1, zx2);
+
+				double slope = (double) (y2 - y1) / (x2 - x1);
+
+				unsigned zx;
+				for (zx = xmin; zx <= xmax; zx++) {
+					unsigned zxs = zx << (32 - zz);
+					unsigned zxe = (zx << (32 - zz)) | (0xFFFFFFFFu >> zz);
+
+					// printf("xz is %016x from %016x to %016x\n", zx, zxs, zxe);
+
+					unsigned ys = (unsigned) (zy1 + (zxs - zx1) * slope) >> (32 - zz);
+					unsigned ye = (unsigned) (zy1 + (zxe + 1 - zx1) * slope) >> (32 - zz);
+
+					unsigned ymin = umin(ys, ye);
+					unsigned ymax = umin(ys, ye);
+
+					// printf("diagonal %016x from %016x to %016x\n", zx, ys, ye);
+
+					unsigned zy;
+					for (zy = ymin; zy <= ymax; zy++) {
+						encode_tile(zz, zz, zx, zy, &start, &end);
+
+						if (range_lookup(ix, minlat, minlon, maxlat, maxlon, callback, data, start, end)) {
+							return;
+						}
+					}
+				}
+			}
 		}
 	}
 }
