@@ -26,8 +26,13 @@ int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned in
 
 void get_bbox_tile(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, int *z, unsigned int *x, unsigned int *y) {
 	*z = get_bbox_zoom(x1, y1, x2, y2);
-	*x = x1 >> (32 - *z);
-	*y = y1 >> (32 - *z);
+
+	if (*z == 0) {
+		*x = *y = 0;
+	} else {
+		*x = x1 >> (32 - *z);
+		*y = y1 >> (32 - *z);
+	}
 }
 
 /*
