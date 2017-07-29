@@ -3,12 +3,13 @@
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
+#include "jsonpull/jsonpull.h"
 
 #define MAX_ZOOM 28
 #define ZOOM_BITS 5
 
 #define FOOT .00000274
-#define BUFFER (50 * FOOT)
+#define BUFFER (100 * FOOT)
 
 int get_bbox_zoom(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2) {
 	int z;
@@ -425,131 +426,207 @@ int callback(struct point *p, void *v) {
 	}
 }
 
+void index_add1(struct index *ix, double lat1, double lon1, double lat2, double lon2) {
+	float rat = cos(lat1 * M_PI / 180);
+	float ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
+
+	float lats[] = {
+		lat2 + BUFFER * sin(ang + M_PI / 4),
+		lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
+		lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
+		lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
+	};
+
+	float lons[] = {
+		lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
+		lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
+		lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
+		lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
+	};
+
+	float minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
+
+	int i;
+	for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
+		if (lats[i] < minlat) {
+			minlat = lats[i];
+		}
+		if (lons[i] < minlon) {
+			minlon = lons[i];
+		}
+		if (lats[i] > maxlat) {
+			maxlat = lats[i];
+		}
+		if (lons[i] > maxlon) {
+			maxlon = lons[i];
+		}
+	}
+
+	index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
+}
+
+void compare(struct index *ix, double lat1, double lon1, double lat2, double lon2, const char *props) {
+	float minlat, minlon, maxlat, maxlon;
+
+	if (lat1 < lat2) {
+		minlat = lat1;
+	} else {
+		minlat = lat2;
+	}
+
+	if (lon1 < lon2) {
+		minlon = lon1;
+	} else {
+		minlon = lon2;
+	}
+
+	if (lat1 > lat2) {
+		maxlat = lat1;
+	} else {
+		maxlat = lat2;
+	}
+
+	if (lon1 > lon2) {
+		maxlon = lon1;
+	} else {
+		maxlon = lon2;
+	}
+
+	struct seg *seg = malloc(sizeof(struct seg));
+	seg->lat1 = lat1;
+	seg->lon1 = lon1;
+	seg->lat2 = lat2;
+	seg->lon2 = lon2;
+	seg->next = NULL;
+
+	index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &seg);
+
+	struct seg *next;
+	for (; seg != NULL; seg = next) {
+		next = seg->next;
+		printf("{\"type\":\"Feature\",\"properties\":%s,\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[%f,%f],[%f,%f]]}}\n",
+			props, seg->lon1, seg->lat1, seg->lon2, seg->lat2);
+		free(seg);
+	}
+}
+
 int main(int argc, char **argv) {
-	char s[2000];
 	long long seq = 0;
 
 	struct index *ix = index_init();
 
-	while (fgets(s, 2000, stdin)) {
-		float lat1, lon1, lat2, lon2;
+	json_pull *jp = json_begin_file(stdin);
 
-		if (seq++ % 100000 == 0) {
-			fprintf(stderr, "%.1f million\r", seq / 1000000.0);
-		}
-
-		if (strcmp(s, "--\n") == 0) {
+	json_object *j;
+	while ((j = json_read(jp)) != NULL) {
+		if (j->type == JSON_STRING && strcmp(j->string, "end part 1") == 0) {
 			break;
 		}
 
-		if (sscanf(s, "%f,%f %f,%f", &lat1, &lon1, &lat2, &lon2) == 4) {
-			float rat = cos(lat1 * M_PI / 180);
-			float ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
+		if (j->type == JSON_HASH) {
+			json_object *type = json_hash_get(j, "type");
 
-			float lats[] = {
-				lat2 + BUFFER * sin(ang + M_PI / 4),
-				lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
-				lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
-				lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
-			};
+			if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "Feature") == 0) {
+				json_object *geometry = json_hash_get(j, "geometry");
+				int has_coords = 0;
 
-			float lons[] = {
-				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
-				lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
-				lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
-				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
-			};
+				if (geometry != NULL && geometry->type == JSON_HASH) {
+					json_object *geom_type = json_hash_get(geometry, "type");
 
-			float minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
+					if (geom_type != NULL && geom_type->type == JSON_STRING && strcmp(geom_type->string, "LineString") == 0) {
+						json_object *coordinates = json_hash_get(geometry, "coordinates");
 
-			int i;
-			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
-				if (lats[i] < minlat) {
-					minlat = lats[i];
+						if (coordinates != NULL && coordinates->type == JSON_ARRAY) {
+							for (size_t i = 0; i + 1 < coordinates->length; i++) {
+								if (coordinates->array[i]->type == JSON_ARRAY &&
+								    coordinates->array[i + 1]->type == JSON_ARRAY &&
+								    coordinates->array[i]->length >= 2 &&
+								    coordinates->array[i + 1]->length >= 2 &&
+								    coordinates->array[i]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i]->array[1]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[1]->type == JSON_NUMBER) {
+									index_add1(ix,
+									           coordinates->array[i]->array[1]->number,
+									           coordinates->array[i]->array[0]->number,
+									           coordinates->array[i + 1]->array[1]->number,
+									           coordinates->array[i + 1]->array[0]->number);
+
+									has_coords = 1;
+								}
+							}
+						}
+					}
 				}
-				if (lons[i] < minlon) {
-					minlon = lons[i];
-				}
-				if (lats[i] > maxlat) {
-					maxlat = lats[i];
-				}
-				if (lons[i] > maxlon) {
-					maxlon = lons[i];
+
+				if (has_coords) {
+					if (seq++ % (1000000 / 100) == 0) {
+						fprintf(stderr, "%.2f million\r", seq / 1000000.0);
+					}
 				}
 			}
-
-			index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
 		}
 	}
 
 	index_sort(ix);
 	seq = 0;
 
-	while (fgets(s, 2000, stdin)) {
-		float lat1, lon1, lat2, lon2;
-
-		if (seq++ % 10000 == 0) {
-			fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
+	while ((j = json_read(jp)) != NULL) {
+		if (j->type == JSON_STRING && strcmp(j->string, "end part 1") == 0) {
+			break;
 		}
 
-		if (sscanf(s, "%f,%f %f,%f", &lat1, &lon1, &lat2, &lon2) == 4) {
-			float minlat, minlon, maxlat, maxlon;
+		if (j->type == JSON_HASH) {
+			json_object *type = json_hash_get(j, "type");
 
-			if (lat1 < lat2) {
-				minlat = lat1;
-			} else {
-				minlat = lat2;
-			}
+			if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "Feature") == 0) {
+				json_object *properties = json_hash_get(j, "properties");
+				char *props = NULL;
+				if (properties != NULL) {
+					props = json_stringify(properties);
+				}
 
-			if (lon1 < lon2) {
-				minlon = lon1;
-			} else {
-				minlon = lon2;
-			}
+				json_object *geometry = json_hash_get(j, "geometry");
 
-			if (lat1 > lat2) {
-				maxlat = lat1;
-			} else {
-				maxlat = lat2;
-			}
+				if (geometry != NULL && geometry->type == JSON_HASH) {
+					json_object *geom_type = json_hash_get(geometry, "type");
 
-			if (lon1 > lon2) {
-				maxlon = lon1;
-			} else {
-				maxlon = lon2;
-			}
+					if (geom_type != NULL && geom_type->type == JSON_STRING && strcmp(geom_type->string, "LineString") == 0) {
+						json_object *coordinates = json_hash_get(geometry, "coordinates");
 
-			struct seg *seg = malloc(sizeof(struct seg));
-			seg->lat1 = lat1;
-			seg->lon1 = lon1;
-			seg->lat2 = lat2;
-			seg->lon2 = lon2;
-			seg->next = NULL;
+						if (coordinates != NULL && coordinates->type == JSON_ARRAY) {
+							for (size_t i = 0; i + 1 < coordinates->length; i++) {
+								if (coordinates->array[i]->type == JSON_ARRAY &&
+								    coordinates->array[i + 1]->type == JSON_ARRAY &&
+								    coordinates->array[i]->length >= 2 &&
+								    coordinates->array[i + 1]->length >= 2 &&
+								    coordinates->array[i]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i]->array[1]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[1]->type == JSON_NUMBER) {
+									compare(ix,
+									        coordinates->array[i]->array[1]->number,
+									        coordinates->array[i]->array[0]->number,
+									        coordinates->array[i + 1]->array[1]->number,
+									        coordinates->array[i + 1]->array[0]->number, props ? props : "{}");
 
-			index_lookup(ix, minlat, minlon, maxlat, maxlon, callback, &seg);
+									if (seq++ % 10000 == 0) {
+										fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
+									}
+								}
+							}
+						}
+					}
+				}
 
-			char *cp = s;
-			for (; *cp != '\0' && !isspace(*cp); cp++) {
-				;
-			}
-			for (; *cp != '\0' && isspace(*cp) && *cp != '\n'; cp++) {
-				;
-			}
-			for (; *cp != '\0' && !isspace(*cp); cp++) {
-				;
-			}
-			for (; *cp != '\0' && isspace(*cp) && *cp != '\n'; cp++) {
-				;
-			}
-
-			struct seg *next;
-			for (; seg != NULL; seg = next) {
-				next = seg->next;
-				printf("%f,%f %f,%f %s", seg->lat1, seg->lon1, seg->lat2, seg->lon2, cp);
-				free(seg);
+				if (props != NULL) {
+					free(props);
+				}
 			}
 		}
 	}
+
+	json_end(jp);
 
 	index_destroy(ix);
 	return 0;
