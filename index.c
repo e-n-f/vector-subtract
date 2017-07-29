@@ -465,7 +465,7 @@ void index_add1(struct index *ix, double lat1, double lon1, double lat2, double 
 	index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
 }
 
-void compare(struct index *ix, double lat1, double lon1, double lat2, double lon2) {
+void compare(struct index *ix, double lat1, double lon1, double lat2, double lon2, const char *props) {
 	float minlat, minlon, maxlat, maxlon;
 
 	if (lat1 < lat2) {
@@ -504,8 +504,8 @@ void compare(struct index *ix, double lat1, double lon1, double lat2, double lon
 	struct seg *next;
 	for (; seg != NULL; seg = next) {
 		next = seg->next;
-		printf("{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[%f,%f],[%f,%f]]}}\n",
-			seg->lon1, seg->lat1, seg->lon2, seg->lat2);
+		printf("{\"type\":\"Feature\",\"properties\":%s,\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[%f,%f],[%f,%f]]}}\n",
+			props, seg->lon1, seg->lat1, seg->lon2, seg->lat2);
 		free(seg);
 	}
 }
@@ -580,6 +580,12 @@ int main(int argc, char **argv) {
 			json_object *type = json_hash_get(j, "type");
 
 			if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "Feature") == 0) {
+				json_object *properties = json_hash_get(j, "properties");
+				char *props = NULL;
+				if (properties != NULL) {
+					props = json_stringify(properties);
+				}
+
 				json_object *geometry = json_hash_get(j, "geometry");
 
 				if (geometry != NULL && geometry->type == JSON_HASH) {
@@ -602,7 +608,7 @@ int main(int argc, char **argv) {
 									        coordinates->array[i]->array[1]->number,
 									        coordinates->array[i]->array[0]->number,
 									        coordinates->array[i + 1]->array[1]->number,
-									        coordinates->array[i + 1]->array[0]->number);
+									        coordinates->array[i + 1]->array[0]->number, props ? props : "{}");
 
 									if (seq++ % 10000 == 0) {
 										fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
@@ -611,6 +617,10 @@ int main(int argc, char **argv) {
 							}
 						}
 					}
+				}
+
+				if (props != NULL) {
+					free(props);
 				}
 			}
 		}
