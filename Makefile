@@ -1,2 +1,2 @@
 index: index.c
-	cc -g -Wall -O3 -o index index.c -lm
+	cc -g -Wall -O3 -o index index.c jsonpull/jsonpull.c -lm

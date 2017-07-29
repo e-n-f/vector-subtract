@@ -3,6 +3,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
+#include "jsonpull/jsonpull.h"
 
 #define MAX_ZOOM 28
 #define ZOOM_BITS 5
@@ -425,11 +426,98 @@ int callback(struct point *p, void *v) {
 	}
 }
 
+void index_add1(struct index *ix, double lat1, double lon1, double lat2, double lon2) {
+	float rat = cos(lat1 * M_PI / 180);
+	float ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
+
+	float lats[] = {
+		lat2 + BUFFER * sin(ang + M_PI / 4),
+		lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
+		lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
+		lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
+	};
+
+	float lons[] = {
+		lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
+		lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
+		lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
+		lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
+	};
+
+	float minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
+
+	int i;
+	for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
+		if (lats[i] < minlat) {
+			minlat = lats[i];
+		}
+		if (lons[i] < minlon) {
+			minlon = lons[i];
+		}
+		if (lats[i] > maxlat) {
+			maxlat = lats[i];
+		}
+		if (lons[i] > maxlon) {
+			maxlon = lons[i];
+		}
+	}
+
+	index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
+}
+
 int main(int argc, char **argv) {
 	char s[2000];
 	long long seq = 0;
 
 	struct index *ix = index_init();
+
+	json_pull *jp = json_begin_file(stdin);
+
+	json_object *j;
+	while ((j = json_read(jp)) != NULL) {
+		if (j->type == JSON_STRING && strcmp(j->string, "end part 1") == 0) {
+			break;
+		}
+
+		if (j->type == JSON_HASH) {
+			json_object *type = json_hash_get(j, "type");
+
+			if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "Feature") == 0) {
+				json_object *geometry = json_hash_get(j, "geometry");
+
+				if (geometry != NULL && geometry->type == JSON_HASH) {
+					json_object *geom_type = json_hash_get(geometry, "type");
+
+					if (geom_type != NULL && geom_type->type == JSON_STRING && strcmp(geom_type->string, "LineString") == 0) {
+						json_object *coordinates = json_hash_get(geometry, "coordinates");
+
+						if (coordinates != NULL && coordinates->type == JSON_ARRAY) {
+							for (size_t i = 0; i + 1 < coordinates->length; i++) {
+								if (coordinates->array[i]->type == JSON_ARRAY &&
+								    coordinates->array[i + 1]->type == JSON_ARRAY &&
+								    coordinates->array[i]->length >= 2 &&
+								    coordinates->array[i + 1]->length >= 2 &&
+								    coordinates->array[i]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i]->array[1]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[0]->type == JSON_NUMBER &&
+								    coordinates->array[i + 1]->array[1]->type == JSON_NUMBER) {
+									index_add1(ix,
+									           coordinates->array[i]->array[1]->number,
+									           coordinates->array[i]->array[0]->number,
+									           coordinates->array[i + 1]->array[1]->number,
+									           coordinates->array[i + 1]->array[0]->number);
+
+									if (seq++ % 10000 == 0) {
+										fprintf(stderr, "%.1f million\r", seq / 1000000.0);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	while (fgets(s, 2000, stdin)) {
 		float lat1, lon1, lat2, lon2;
@@ -443,42 +531,7 @@ int main(int argc, char **argv) {
 		}
 
 		if (sscanf(s, "%f,%f %f,%f", &lat1, &lon1, &lat2, &lon2) == 4) {
-			float rat = cos(lat1 * M_PI / 180);
-			float ang = atan2(lat2 - lat1, (lon2 - lon1) * rat);
-
-			float lats[] = {
-				lat2 + BUFFER * sin(ang + M_PI / 4),
-				lat2 + BUFFER * sin(ang + M_PI * 7 / 4),
-				lat1 + BUFFER * sin(ang + M_PI * 5 / 4),
-				lat1 + BUFFER * sin(ang + M_PI * 3 / 4),
-			};
-
-			float lons[] = {
-				lon2 + BUFFER * cos(ang + M_PI / 4) / rat,
-				lon2 + BUFFER * cos(ang + M_PI * 7 / 4) / rat,
-				lon1 + BUFFER * cos(ang + M_PI * 5 / 4) / rat,
-				lon1 + BUFFER * cos(ang + M_PI * 3 / 4) / rat,
-			};
-
-			float minlat = 360, minlon = 360, maxlat = -360, maxlon = -360;
-
-			int i;
-			for (i = 0; i < sizeof(lats) / sizeof(lats[0]); i++) {
-				if (lats[i] < minlat) {
-					minlat = lats[i];
-				}
-				if (lons[i] < minlon) {
-					minlon = lons[i];
-				}
-				if (lats[i] > maxlat) {
-					maxlat = lats[i];
-				}
-				if (lons[i] > maxlon) {
-					maxlon = lons[i];
-				}
-			}
-
-			index_add(ix, minlat, minlon, maxlat, maxlon, sizeof(lats) / sizeof(lats[0]), lats, lons);
+			index_add1(ix, lat1, lon1, lat2, lon2);
 		}
 	}
 
