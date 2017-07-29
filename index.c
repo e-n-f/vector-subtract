@@ -564,6 +564,8 @@ int main(int argc, char **argv) {
 						fprintf(stderr, "%.2f million\r", seq / 1000000.0);
 					}
 				}
+
+				json_free(j);
 			}
 		}
 	}
@@ -622,6 +624,8 @@ int main(int argc, char **argv) {
 				if (props != NULL) {
 					free(props);
 				}
+
+				json_free(j);
 			}
 		}
 	}
