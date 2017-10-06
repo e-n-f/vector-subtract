@@ -96,7 +96,7 @@ void latlon2tile(float lat, float lon, int zoom, unsigned int *x, unsigned int *
 	unsigned long long n = 1LL << zoom;
 
 	*x = n * ((lon + 180) / 360);
-	*y = n * (1 - (log(tan(lat_rad) + 1/cos(lat_rad)) / M_PI)) / 2;
+	*y = n * (1 - (log(tan(lat_rad) + 1 / cos(lat_rad)) / M_PI)) / 2;
 }
 
 // http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
@@ -135,8 +135,7 @@ int pointcmp(const void *v1, const void *v2) {
 
 // http://www.tbray.org/ongoing/When/200x/2003/03/22/Binary
 void *search(const void *key, const void *base, size_t nel, size_t width,
-		int (*cmp)(const void *, const void *)) {
-
+	     int (*cmp)(const void *, const void *)) {
 	long long high = nel, low = -1, probe;
 	while (high - low > 1) {
 		probe = (low + high) >> 1;
@@ -294,40 +293,39 @@ struct seg {
 };
 
 // http://www.ecse.rpi.edu/~wrf/Research/Short_Notes/pnpoly.html
-int pnpoly(int nvert, float *vertx, float *verty, float testx, float testy)
-{
-  int i, j, c = 0;
-  for (i = 0, j = nvert-1; i < nvert; j = i++) {
-    if ( ((verty[i]>testy) != (verty[j]>testy)) &&
-	 (testx < (vertx[j]-vertx[i]) * (testy-verty[i]) / (verty[j]-verty[i]) + vertx[i]) )
-       c = !c;
-  }
-  return c;
+int pnpoly(int nvert, float *vertx, float *verty, float testx, float testy) {
+	int i, j, c = 0;
+	for (i = 0, j = nvert - 1; i < nvert; j = i++) {
+		if (((verty[i] > testy) != (verty[j] > testy)) &&
+		    (testx < (vertx[j] - vertx[i]) * (testy - verty[i]) / (verty[j] - verty[i]) + vertx[i]))
+			c = !c;
+	}
+	return c;
 }
 
 // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
-int intersect(float p0_x, float p0_y, float p1_x, float p1_y, 
-    float p2_x, float p2_y, float p3_x, float p3_y, float *i_x, float *i_y)
-{
-    float s1_x, s1_y, s2_x, s2_y;
-    s1_x = p1_x - p0_x;     s1_y = p1_y - p0_y;
-    s2_x = p3_x - p2_x;     s2_y = p3_y - p2_y;
+int intersect(float p0_x, float p0_y, float p1_x, float p1_y,
+	      float p2_x, float p2_y, float p3_x, float p3_y, float *i_x, float *i_y) {
+	float s1_x, s1_y, s2_x, s2_y;
+	s1_x = p1_x - p0_x;
+	s1_y = p1_y - p0_y;
+	s2_x = p3_x - p2_x;
+	s2_y = p3_y - p2_y;
 
-    float s, t;
-    s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
-    t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
+	float s, t;
+	s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / (-s2_x * s1_y + s1_x * s2_y);
+	t = (s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / (-s2_x * s1_y + s1_x * s2_y);
 
-    if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
-    {
-        // Collision detected
-        if (i_x != NULL)
-            *i_x = p0_x + (t * s1_x);
-        if (i_y != NULL)
-            *i_y = p0_y + (t * s1_y);
-        return 1;
-    }
+	if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+		// Collision detected
+		if (i_x != NULL)
+			*i_x = p0_x + (t * s1_x);
+		if (i_y != NULL)
+			*i_y = p0_y + (t * s1_y);
+		return 1;
+	}
 
-    return 0; // No collision
+	return 0;  // No collision
 }
 
 int callback(struct point *p, void *v) {
@@ -505,7 +503,7 @@ void compare(struct index *ix, double lat1, double lon1, double lat2, double lon
 	for (; seg != NULL; seg = next) {
 		next = seg->next;
 		printf("{\"type\":\"Feature\",\"properties\":%s,\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[%f,%f],[%f,%f]]}}\n",
-			props, seg->lon1, seg->lat1, seg->lon2, seg->lat2);
+		       props, seg->lon1, seg->lat1, seg->lon2, seg->lat2);
 		free(seg);
 	}
 }
@@ -547,10 +545,10 @@ int main(int argc, char **argv) {
 								    coordinates->array[i + 1]->array[0]->type == JSON_NUMBER &&
 								    coordinates->array[i + 1]->array[1]->type == JSON_NUMBER) {
 									index_add1(ix,
-									           coordinates->array[i]->array[1]->number,
-									           coordinates->array[i]->array[0]->number,
-									           coordinates->array[i + 1]->array[1]->number,
-									           coordinates->array[i + 1]->array[0]->number);
+										   coordinates->array[i]->array[1]->number,
+										   coordinates->array[i]->array[0]->number,
+										   coordinates->array[i + 1]->array[1]->number,
+										   coordinates->array[i + 1]->array[0]->number);
 
 									has_coords = 1;
 								}
@@ -565,6 +563,8 @@ int main(int argc, char **argv) {
 					}
 				}
 
+				json_free(j);
+			} else if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "FeatureCollection") == 0) {
 				json_free(j);
 			}
 		}
@@ -607,10 +607,10 @@ int main(int argc, char **argv) {
 								    coordinates->array[i + 1]->array[0]->type == JSON_NUMBER &&
 								    coordinates->array[i + 1]->array[1]->type == JSON_NUMBER) {
 									compare(ix,
-									        coordinates->array[i]->array[1]->number,
-									        coordinates->array[i]->array[0]->number,
-									        coordinates->array[i + 1]->array[1]->number,
-									        coordinates->array[i + 1]->array[0]->number, props ? props : "{}");
+										coordinates->array[i]->array[1]->number,
+										coordinates->array[i]->array[0]->number,
+										coordinates->array[i + 1]->array[1]->number,
+										coordinates->array[i + 1]->array[0]->number, props ? props : "{}");
 
 									if (seq++ % 10000 == 0) {
 										fprintf(stderr, "checked %.3f million\r", seq / 1000000.0);
@@ -625,6 +625,8 @@ int main(int argc, char **argv) {
 					free(props);
 				}
 
+				json_free(j);
+			} else if (type != NULL && type->type == JSON_STRING && strcmp(type->string, "FeatureCollection") == 0) {
 				json_free(j);
 			}
 		}
